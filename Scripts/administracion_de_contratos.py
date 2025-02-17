@@ -3,15 +3,14 @@ import sys
 import pandas as pd
 script_directory = os.path.dirname(os.path.abspath(__file__))
 function_library = os.path.abspath(os.path.join(script_directory, 'Libreria_contratos'))
-
 sys.path.append(function_library) 
 from STEP_A_orchestration import STEP_A_orchestration
 from folders_files_open import load_dataframe
 
 def administracion_de_contratos(working_folder):
-    console_path = os.path.join(working_folder, 'Consola 2025.xlsx')
-    sheet = 'Desagregada'
-    columns = ['Institución', 'Procedimiento', 'Clave', 'Descripción', 'Precio', '2025']
+    console_path = os.path.join(working_folder, 'desagregada.xlsx')
+    sheet = 'Sheet1'
+    columns = ['Institución', 'Procedimiento', 'Clave', 'Descripción', 'Precio', 'Total']
     df_desagregada = load_dataframe(console_path, sheet, columns)
     #print(df_desagregada.head())
     procedimiento_column = 'Procedimiento'

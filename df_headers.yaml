@@ -1,0 +1,79 @@
+columns_INSABI:
+  ITEM: int
+  RFC: str
+  RAZÓN SOCIAL: str
+  ALMACÉN ENTREGA: str
+  DIRECCIÓN ALMACÉN: str
+  INSTITUCIÓN REQUIRENTE: str
+  NÚMERO DE ORDEN DE SUMINISTRO: str
+  FECHA EXPEDICIÓN DE LA ORDEN: datetime64[ns]  # dd/mm/yyyy
+  FECHA LÍMITE DE ENTREGA DE LA ORDEN: datetime64[ns]  # dd/mm/yyyy
+  CLAVE INSUMO: str
+  DESCRIPCIÓN: str
+  CLUES: str
+  ENTIDAD DESTINO FINAL: str
+  CANTIDAD SOLICITADA: int
+  ESTATUS: str
+
+columns_IMSS_orders:
+  contrato: str
+  solicitud: str
+  orden: str
+  generacion: str
+  cveArticulo: str
+  fechaExpedicion: datetime64[ns]  # dd/mm/yyyy
+  lugarEntrega: str
+  descripciónEntrega: str
+  direccionEntrega: str
+  destinoFinal: str
+  estatus: str
+  fechaEntrega: datetime64[ns]  # dd/mm/yyyy
+  cantidadSolicitada: str
+  precio: str
+  importeSinIva: str
+
+columns_imss_altas:
+  noAlta: str
+  fechaAltaTrunc: datetime64[ns]
+  noContrato: str
+  noOrden: str
+  clave: str
+  cantRecibida: int
+  importe: int
+  fpp: datetime64[ns]
+  clasPtalRecep: str
+  descUnidad: str
+  clasPtalDist: str
+  descDist: str
+  totalItems: str
+  resguardo: str
+
+Desagregada_columns:
+  Institución: str
+  Procedimiento: str
+  Clave: str
+  Descripción: str
+  Precio: float
+  Total: int
+
+columns_CCINSHAE:
+  Institución Homologada: str
+  Contrato: str
+  Orden: str
+  Clave: str
+  fechaExpedicion: datetime64[ns]
+  lugarEntrega: str
+  descripciónEntrega: str
+  direccionEntrega: str
+  fechaEntrega: datetime64[ns]
+  cantidadSolicitada: int
+  Precio: int
+  SalesOrder Number: str
+  Status: str
+  Importe: float
+  Notes: str
+  CF.Uso de CFDI: str
+  CF.Forma de pago: str
+  QuantityInvoiced: str
+
+
