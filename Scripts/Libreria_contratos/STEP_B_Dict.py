@@ -212,7 +212,8 @@ def STEP_B_populate_from_df(df_to_load, column):
     if len(df_to_load[column].dropna()) > 0:
         print("✅ Se encontró al menos un registro:")
         unique_values = df_to_load[column].dropna().unique()
-        for idx, value in enumerate(unique_values):
+        #for idx, value in enumerate(unique_values[:3]):  
+        for idx, value in enumerate(unique_values[:3]):
             print(f"\t{idx}) {value}")
     else:
         print(f"❌ No se encontraron registros en la columna {column}.")
