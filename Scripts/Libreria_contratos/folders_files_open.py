@@ -4,7 +4,40 @@ import platform
 import os
 import pandas as pd
 from IPython.display import display
+import re
 
+def sanitize_filename(filename):
+    """Replace invalid characters with '-' and keep only allowed characters."""
+    sanitized = re.sub(r'[^a-zA-Z0-9_-]', '-', filename)
+    return sanitized
+
+def trim_to_limit(filename, limit=255):
+    """Trim filename to the allowed limit, prioritizing digits from the contract value."""
+    if len(filename) <= limit:
+        return filename
+    # Prioritize digits from the contract value
+    digits = ''.join(filter(str.isdigit, filename))
+    if len(digits) > limit:
+        return digits[:limit]
+    return digits + filename[len(digits):][:limit - len(digits)]
+def open_excel(path):
+    """Open an Excel file based on the operating system."""
+    if not os.path.exists(path):
+        print(f"Error: El archivo '{path}' no existe.")
+        return
+
+    try:
+        if platform.system() == "Windows":
+            os.system(f'start excel "{path}"')
+        elif platform.system() == "Darwin":  # macOS
+            os.system(f'open -a "Microsoft Excel" "{path}"')
+        else:
+            print("Sistema operativo no soportado para abrir Excel.")
+            return
+
+        print(f"{os.path.basename(path)} abierto con éxito.")
+    except Exception as e:
+        print(f"Error al intentar abrir el archivo: {e}")
 
 def load_dataframe(path, sheet, columns):
     # Check if the file path exists
@@ -82,3 +115,4 @@ def create_directory_if_not_exists(path):
         print(f"\tFolder {os.path.basename(path)} creado.", flush=True)
     else:
         print(f"\tFolder {os.path.basename(path)} encontrado.", flush=True)
+

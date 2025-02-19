@@ -1,10 +1,11 @@
 
-from folders_files_open import open_folder, create_directory_if_not_exists, open_pdf
+from folders_files_open import open_folder, create_directory_if_not_exists, sanitize_filename, trim_to_limit
 
 import os
 import pyperclip
 import PyPDF2
 import re
+import shutil
 
 def STEP_C_PDF_HANDLING(temp_path, valid_dict):
     """
@@ -13,15 +14,18 @@ def STEP_C_PDF_HANDLING(temp_path, valid_dict):
     Parameters:
         temp_path (str): The path where the temporary PDF is stored.
         valid_dict (dict): Dictionary containing metadata fields for naming.
-
     Returns:
         None
     """
     print("\n📄 Con los datos extraídos, es momento de pasar a cargar el PDF\n")
 
     # Ensure the temp directory exists
+    if os.path.exists(temp_path):
+        shutil.rmtree(temp_path)
+
     create_directory_if_not_exists(temp_path)
     open_folder(temp_path)  # Opens the temp directory for user review
+    input("\n🔄 Por favor presiona Enter cuando hayas movido el PDF a la carpeta temporal que se abrió.\n")
 
     while True:
         # List PDF files in the directory
@@ -43,25 +47,30 @@ def STEP_C_PDF_HANDLING(temp_path, valid_dict):
             input("📂 Agrega un archivo PDF en la carpeta y presiona ENTER para continuar...")
             continue  # Restart the loop
 
-    # Build the filename using dictionary values
-    day, month, year = valid_dict['Primer registro'].split('/')
+    # Build the filename using dictionary values ##
+    # Sanitize and build the filename
+    contrato_sanitized = sanitize_filename(valid_dict.get('Contrato', ''))
+    estatus = sanitize_filename(valid_dict.get('Estatus', ''))
+    pdf_name = f"{contrato_sanitized}_{estatus}.pdf"
+    pdf_name = trim_to_limit(pdf_name)
 
-    pdf_name = f"{year} {month} {day} {valid_dict['Materia']}.pdf"
+    # Locate the first (and only) PDF in the temp_path
+    pdf_files = [f for f in os.listdir(temp_path) if f.lower().endswith('.pdf')]
+    if not pdf_files:
+        print("❌ No PDF files found in the directory.")
+        return
 
-    # Locate the first (and now only) PDF
     temp_pdf_path = os.path.join(temp_path, pdf_files[0])
     pdf_path = os.path.join(temp_path, pdf_name)
 
     # Rename the file
     try:
         os.rename(temp_pdf_path, pdf_path)
-        print(f"✅ Archivo renombrado a: {pdf_path}")
+        print(f"✅ Archivo renombrado a: \t{os.path.basename(pdf_path)}")
     except Exception as e:
         print(f"❌ Error al renombrar el archivo: {e}")
         return
 
-    # Open the renamed PDF
-    open_pdf(pdf_path)
     return pdf_path
 
 def extract_text_between_braces(text):
@@ -122,7 +131,7 @@ def STEP_C_read_labeled_pdf(pdf_list, valid_dict):
         print("✅ **Etiqueta copiada al portapapeles.**")
 
         while True:
-            input(f"\n✏️ **Por favor, pega la etiqueta en el archivo {pdf_file} y presiona ENTER cuando termines...**")
+            input(f"\n✏️ **Por favor, pega la etiqueta en el archivo {os.path.basename(pdf_file)} y presiona ENTER cuando termines...**")
 
             # Extract text from PDF
             extracted_text = read_pdf(pdf_file)

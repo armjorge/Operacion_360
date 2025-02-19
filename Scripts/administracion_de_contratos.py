@@ -7,12 +7,14 @@ sys.path.append(function_library)
 from STEP_A_orchestration import STEP_A_orchestration
 from folders_files_open import load_dataframe
 
-def administracion_de_contratos(working_folder):
-    console_path = os.path.join(working_folder, 'desagregada.xlsx')
+def administracion_de_contratos(data_warehouse, working_folder, carpeta_contratos):
+    console_path = os.path.join(data_warehouse, 'desagregada.xlsx')
     sheet = 'Sheet1'
     columns = ['Institución', 'Procedimiento', 'Clave', 'Descripción', 'Precio', 'Total']
     df_desagregada = load_dataframe(console_path, sheet, columns)
-    #print(df_desagregada.head())
+    print(df_desagregada.columns, '/n')
+    print(df_desagregada.head())
+    
     procedimiento_column = 'Procedimiento'
     institucion_column = 'Institución'
     if procedimiento_column in columns and institucion_column in columns:
@@ -44,7 +46,7 @@ def administracion_de_contratos(working_folder):
     while True:
         step_0 = input("Seleccione una opción (1 o 2): ")
         if step_0 == "1":
-            STEP_A_orchestration(working_folder, df_desagregada, institucion_column, selected_procedimiento)
+            STEP_A_orchestration(working_folder, df_desagregada, institucion_column, selected_procedimiento, carpeta_contratos)
         elif step_0 == "2":
             # Suponiendo que aquí debería haber algún código para extraer la base de contratos
             print("Base de contratos extraída correctamente.")
@@ -53,6 +55,6 @@ def administracion_de_contratos(working_folder):
             print("¿1) Capturar un contrato o 2) extraer base contratos existentes?")
 
   
- # Call the main function
-if __name__ == "__main__":
-    main()
+# Call the main function
+#if __name__ == "__main__":
+#    main()
