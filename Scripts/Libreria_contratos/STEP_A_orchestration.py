@@ -3,7 +3,7 @@ import sys
 import shutil
 from folders_files_open import create_directory_if_not_exists, load_dataframe
 from STEP_B_Dict import STEP_B_get_string_populated
-from STEP_C_PDFhandling import STEP_C_PDF_HANDLING, STEP_C_read_labeled_pdf
+from STEP_C_PDFhandling import STEP_C_PDF_HANDLING
 import ast
 
 
@@ -43,27 +43,8 @@ def STEP_A_orchestration(folder_path, df_desagregada_procedimiento, institucion_
     # Print the total
     print(f"💰 Total del contrato: {total}")
     temp_directory = os.path.join(working_folder, 'Temp')
-    pdf_path_list = [STEP_C_PDF_HANDLING(temp_directory, valid_dict)]
-    
-    result_dict = STEP_C_read_labeled_pdf(pdf_path_list, valid_dict)
-    print(f"Inserto agregado: {result_dict}")
+    contrato_pdf_temporal = [STEP_C_PDF_HANDLING(temp_directory, valid_dict, carpeta_contratos)]
+
+    #result_dict = STEP_C_read_labeled_pdf(pdf_path_list, valid_dict)
+    #print(f"Inserto agregado: {result_dict}")
     #df_feed = STEP_C_feed_DF(df_referencia_interna, result_dict)
-    # ✅ Move pdf_path_list[0] to PDF_library
-    source_path = pdf_path_list[0]
-    destination_path = carpeta_contratos
-    try:
-        shutil.move(source_path, destination_path)
-        print(f"✅ Archivo movido a la biblioteca: {destination_path}")
-        
-        # ✅ Confirm the file is in PDF_library
-        if os.path.exists(destination_path):
-            print("✅ Confirmación: El archivo está en la biblioteca.")
-            
-            # ✅ Remove temp_directory
-            if os.path.exists(temp_directory):
-                shutil.rmtree(temp_directory)
-                print("✅ Temp directory eliminado.")
-        
-        print("📄 Archivo rotulado en la biblioteca y registrado en la referencia interna")
-    except Exception as e:
-        print(f"❌ Error al mover el archivo: {e}")
