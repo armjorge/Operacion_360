@@ -26,7 +26,7 @@ def clear_input_field(driver, xpath):
             # Get the current value using get_attribute and JavaScript
             current_value = input_field.get_attribute('value')
             js_value = driver.execute_script("return arguments[0].value;", input_field)
-            print(f"Attempt {attempt + 1}: Current value (via JS): '{js_value}'")
+            #print(f"Attempt {attempt + 1}: Current value (via JS): '{js_value}'")
             # If either method indicates the field is cleared, exit successfully
             if current_value == '__/__/____' or js_value == '__/__/____':
                 print(f"Field cleared successfully on attempt {attempt + 1}")
@@ -56,7 +56,7 @@ def input_date(driver, input_field_xpath, date):
         print(f"Attempting to input date: {date_str}")
         input_field = driver.find_element(By.XPATH, input_field_xpath)  # Re-locate before sending keys
         input_field.send_keys(date_str)
-        print(f"Date '{date_str}' entered successfully into the field.")
+        #print(f"Date '{date_str}' entered successfully into the field.")
         time.sleep(0.5)
     except Exception as e:
         print(f"Error in input_date for field '{input_field_xpath}' with date '{date}': {e}")
@@ -161,14 +161,16 @@ def download_files(driver, df, username, password):
             print("Moving to the next set.")
             driver.execute_script("window.scrollTo(0, 0);")
 
-def check_missing_files(df, username):
+def check_missing_files(df, username, download_directory):
     missing_files = []
     for index, row in df.iterrows():
         date_start = convert_date_format(row['DATE START'])
         date_end = convert_date_format(row['DATE END'])
         file_name = f'[FacturaVsCR][{username}][{date_start}][{date_end}].xls'
-        if not os.path.exists(file_name):
+        file_path = os.path.join(download_directory, file_name)  # Ensure it checks inside the given directory
+        if not os.path.exists(file_path):
             missing_files.append(row)
+            
     return pd.DataFrame(missing_files)
 
 def PREI_downloader(driver, username, password, download_directory, excel_file):
@@ -184,11 +186,12 @@ def PREI_downloader(driver, username, password, download_directory, excel_file):
     """
     df = pd.read_excel(excel_file)
     download_files(driver, df, username, password)
-    missing_df = check_missing_files(df, username)
+    missing_df = check_missing_files(df, username, download_directory)
     if missing_df.empty:
         print("All files are present.")
     else:
         print("Missing files for the following date ranges:")
+        print(missing_df.head())
         for index, row in missing_df.iterrows():
             print(f"{convert_date_format(row['DATE START'])} to {convert_date_format(row['DATE END'])}")
         # Attempt to download missing files
