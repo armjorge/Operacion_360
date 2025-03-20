@@ -9,6 +9,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from gspread_dataframe import set_with_dataframe
 import shutil
+import re
 
 def move_files(temp_folder, final_folder):
     """
@@ -119,6 +120,8 @@ def merge_files(temp_folder, final_folder):
     except Exception as e:
         print("Error updating Google Sheet:", e)
     """
+    sorting_columns = ["Documento", "Folio Fiscal", "Fecha Factura", "Importe", "Fecha Carga", "Unidad Negocio", "Contra Recibo", "Estado C.R.", "Fecha"]
+    combined_data = combined_data[sorting_columns]
     # Save the merged data to an Excel file.
     with pd.ExcelWriter(filename, engine='xlsxwriter') as writer:
         combined_data.to_excel(writer, sheet_name='Sheet1', startrow=0, index=False)
@@ -249,3 +252,90 @@ def audit(final_folder, year):
         print(f"Data extraction and processing complete. {os.path.basename(output_path)} has been updated.")
     except Exception as e:
         print(f"Error saving audit file: {e}")
+
+
+def fusion_2023_2025(valid_years, folder_root):
+    """
+    Fusiona ciclos fiscales 2023, 2024, 2025.
+    
+    Busca y fusiona archivos Excel del día actual para cada año en valid_years. 
+    El nombre de los archivos debe seguir el formato:
+      "{today.year} {month:02d} {day:02d} PISP {hour:02d}h.xlsx"
+    Si no se encuentra un archivo para el día de hoy en un ciclo, imprime un mensaje
+    y continúa con el siguiente año.
+    """
+    # Define expected headers (adjust as needed)
+    expected_headers = ["Documento", "Folio Fiscal", "Fecha Factura", "Importe", 
+                        "Fecha Carga", "Unidad Negocio", "Contra Recibo", "Estado C.R.", "Fecha"]
+
+    # List to collect DataFrames from each recent xlsx file
+    dataframes = []
+    
+    # Get today's date
+    today = datetime.datetime.now()
+    # Format month and day with two digits each, separated by a space (e.g., "03 20")
+    month_day_str = today.strftime("%m %d")
+    print(f"DEBUG: Today's date for file search: {today.strftime('%Y %m %d')}")
+    
+    # Loop through each valid year folder
+    for year in valid_years:
+        final_folder = os.path.join(folder_root, 'Implementación', 'PREI', f"{year} Final")
+        print(f"DEBUG: Looking in folder: {os.path.basename(final_folder)}")
+        
+        # Build glob pattern for today's file using today's year instead of the folder year.
+        pattern = os.path.join(final_folder, f"{today.year} {month_day_str} PISP *h.xlsx")
+        print(f"DEBUG: Using glob pattern: {os.path.basename(pattern)}")
+        
+        files = glob.glob(pattern)
+        print("DEBUG: Files found:")
+        for item in files:
+            print(os.path.basename(item))
+        
+        if not files:
+            print(f"\n**** No file found for today for folder {year} Final ****\n")
+            continue
+        
+        # Extract the hour from the filename and choose the file with the highest hour.
+        file_hour_pairs = []
+        for file in files:
+            # Regex to match pattern like "PISP 09h.xlsx" at the end of the filename.
+            match = re.search(r"PISP (\d{2})h\.xlsx$", file)
+            if match:
+                hour = int(match.group(1))
+                file_hour_pairs.append((hour, file))
+                print(f"DEBUG: Found file: {os.path.basename(file)} with hour: {hour}")
+            else:
+                print(f"DEBUG: File {file} does not match expected pattern.")
+        
+        if not file_hour_pairs:
+            print(f"\n**** No file found for today for folder {year} Final after pattern matching ****\n")
+            continue
+        
+        # Choose the file with the maximum hour value (most recent)
+        recent_file = max(file_hour_pairs, key=lambda x: x[0])[1]
+        print(f"DEBUG: Selected recent file for folder {year} Final: {os.path.basename(recent_file)}")
+        
+        # Load the recent file
+        try:
+            df = pd.read_excel(recent_file, engine='openpyxl')
+            print(f"DEBUG: Successfully read file: {os.path.basename(recent_file)}")
+        except Exception as e:
+            print(f"Error reading {recent_file}: {e}")
+            continue
+        
+        # Check if the file's headers match the expected headers
+        if list(df.columns) != expected_headers:
+            print(f"Headers in {os.path.basename(recent_file)} do not match expected headers. Skipping this file.")
+            print(f"DEBUG: File headers: {list(df.columns)}")
+            continue
+        
+        dataframes.append(df)
+    
+    # Merge all valid DataFrames into one master DataFrame and save
+    if dataframes:
+        master_df = pd.concat(dataframes, ignore_index=True)
+        master_file = os.path.join(folder_root, 'Implementación', 'PREI', "PREI.xlsx")
+        master_df.to_excel(master_file, index=False, engine='openpyxl')
+        print(f"Master file saved as: {master_file}")
+    else:
+        print("No valid files found to merge.")
