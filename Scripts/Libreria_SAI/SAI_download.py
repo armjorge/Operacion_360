@@ -7,7 +7,7 @@ from selenium.common.exceptions import TimeoutException
 import time
 from datetime import datetime
 
-def SAI_download(driver, username, password):
+def SAI_download(driver, username, password, range_date):
     """
     Perform the Altas and Ordenes downloads using the provided Selenium driver.
     
@@ -30,7 +30,8 @@ def SAI_download(driver, username, password):
         'Ordenes_consultar': "/html/body/main/div[2]/app-root/app-consulta-ordenes/div[3]/div[2]/div[2]/button[2]",
         'Ordenes_exportar': "/html/body/main/div[2]/app-root/app-consulta-ordenes/div[4]/div/button",
     }
-    
+    start_date, end_date = range_date
+
     try:
         # Open the URL and perform login
         driver.get('https://ppsai-abasto.imss.gob.mx/abasto-web/reporteAltas')
@@ -55,21 +56,21 @@ def SAI_download(driver, username, password):
             EC.element_to_be_clickable((By.XPATH, elements_xpaths['Altas']))
         ).click()
         
-        today_date = datetime.now().strftime('%d/%m/%Y')
+        
         
         # Set the start date for Altas
         input_date_element = driver.find_element(By.XPATH, elements_xpaths['Altas_inicial'])
         time.sleep(1)
         input_date_element.send_keys(Keys.ESCAPE)
         time.sleep(1)
-        input_date_element.send_keys("01/01/2024")
+        input_date_element.send_keys(start_date)
         time.sleep(1)
         
         # Set the end date for Altas
         input_date_element = driver.find_element(By.XPATH, elements_xpaths['Altas_final'])
         input_date_element.send_keys(Keys.ESCAPE)
         time.sleep(1)
-        input_date_element.send_keys(today_date)
+        input_date_element.send_keys(end_date)
         time.sleep(1)
         
         # Execute Altas query and export
@@ -107,14 +108,14 @@ def SAI_download(driver, username, password):
         input_date_element = driver.find_element(By.XPATH, elements_xpaths['Ordenes_inicial'])
         input_date_element.send_keys(Keys.ESCAPE)
         time.sleep(1)
-        input_date_element.send_keys("01/01/2024")
+        input_date_element.send_keys(start_date)
         time.sleep(1)
         
         # Set the end date for Ordenes
         input_date_element = driver.find_element(By.XPATH, elements_xpaths['Ordenes_final'])
         input_date_element.send_keys(Keys.ESCAPE)
         time.sleep(1)
-        input_date_element.send_keys(today_date)
+        input_date_element.send_keys(end_date)
         time.sleep(1)
         
         # Execute Ordenes query and export
