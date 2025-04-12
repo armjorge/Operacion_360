@@ -35,3 +35,4 @@ def SAI_camunda(driver, username, password):
     
     # Wait for user to filter tasks manually if needed
     input("Filtra y presiona enter cuando estés listo...")
+    

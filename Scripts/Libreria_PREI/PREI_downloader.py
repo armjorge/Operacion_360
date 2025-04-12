@@ -8,7 +8,8 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
-
+import datetime
+import glob
 def convert_date_format(date):
     return date.replace("/", "-")
 
@@ -160,7 +161,8 @@ def download_files(driver, df, username, password):
         finally:
             print("Moving to the next set.")
             driver.execute_script("window.scrollTo(0, 0);")
-
+""" 
+Versión original
 def check_missing_files(df, username, download_directory):
     missing_files = []
     for index, row in df.iterrows():
@@ -174,7 +176,6 @@ def check_missing_files(df, username, download_directory):
     return pd.DataFrame(missing_files)
 
 def PREI_downloader(driver, username, password, download_directory, excel_file):
-    """
     Main function to execute the PREI downloader process.
     
     Parameters:
@@ -183,7 +184,7 @@ def PREI_downloader(driver, username, password, download_directory, excel_file):
       password: Login password.
       download_directory: (Not used inside but passed for consistency—driver already has it configured.)
       excel_file: Path to the Excel file containing date ranges.
-    """
+    
     df = pd.read_excel(excel_file)
     download_files(driver, df, username, password)
     missing_df = check_missing_files(df, username, download_directory)
@@ -196,3 +197,86 @@ def PREI_downloader(driver, username, password, download_directory, excel_file):
             print(f"{convert_date_format(row['DATE START'])} to {convert_date_format(row['DATE END'])}")
         # Attempt to download missing files
         download_files(driver, missing_df, username, password)
+""" 
+def clean_download_directory(download_directory, username):
+    """
+    Cleans the download_directory by removing .xls files that are either:
+      - Not created today, or
+      - Not loadable as a non-empty DataFrame.
+    Returns a set of valid file names (basename) present in the directory.
+    """
+    valid_files = set()
+    today = datetime.date.today()
+    # List all .xls files in the directory
+    xls_files = glob.glob(os.path.join(download_directory, "*.xls"))
+    
+    for file_path in xls_files:
+        try:
+            # Get file creation time as date
+            file_creation_date = datetime.date.fromtimestamp(os.path.getctime(file_path))
+        except Exception as e:
+            print(f"Error getting creation time for {os.path.basename(file_path)}: {e}")
+            continue
+        
+        if file_creation_date != today:
+            print(f"remove {os.path.basename(file_path)} (not from today)")
+            os.remove(file_path)
+            continue
+        
+        # Check if file is valid (loadable and non-empty)
+        try:
+            df_file = pd.read_excel(file_path)
+            if df_file.empty:
+                print(f"remove {os.path.basename(file_path)} (empty file)")
+                os.remove(file_path)
+                continue
+        except Exception as e:
+            print(f"remove {os.path.basename(file_path)} (not loadable: {e})")
+            os.remove(file_path)
+            continue
+        
+        # File passed the checks: add its basename to the set
+        valid_files.add(os.path.basename(file_path))
+    
+    return valid_files
+
+def check_missing_files(df, username, download_directory):
+    """
+    Checks for missing files based on the date ranges provided in df.
+    Prior to checking, cleans the download directory by removing invalid files.
+    Returns a DataFrame with the rows corresponding to missing files.
+    """
+    valid_files = clean_download_directory(download_directory, username)
+    missing_rows = []
+    
+    for index, row in df.iterrows():
+        date_start = convert_date_format(row['DATE START'])
+        date_end = convert_date_format(row['DATE END'])
+        file_name = f'[FacturaVsCR][{username}][{date_start}][{date_end}].xls'
+        # Only add row if the expected file is not among the valid files
+        if file_name not in valid_files:
+            missing_rows.append(row)
+    
+    return pd.DataFrame(missing_rows)
+
+def PREI_downloader(driver, username, password, download_directory, excel_file):
+    """
+    Executes the PREI downloader process.
+    
+    Steps:
+      1. Read the Excel file to get date ranges.
+      2. Clean the download directory and check which files are missing/invalid.
+      3. Download files for the missing date ranges.
+    """
+    df = pd.read_excel(excel_file)
+    # Remove invalid or outdated files and get missing date ranges
+    df_missing = check_missing_files(df, username, download_directory)
+    if df_missing.empty:
+        print("All files are present and valid.")
+    else:
+        print("Missing or invalid files for the following date ranges:")
+        print(df_missing.head())
+        for index, row in df_missing.iterrows():
+            print(f"{convert_date_format(row['DATE START'])} to {convert_date_format(row['DATE END'])}")
+        # Attempt to download the missing files
+        download_files(driver, df_missing, username, password)
