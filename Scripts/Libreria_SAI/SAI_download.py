@@ -35,7 +35,9 @@ def SAI_download(driver, username, password, range_date):
     try:
         # Open the URL and perform login
         driver.get('https://ppsai-abasto.imss.gob.mx/abasto-web/reporteAltas')
-        WebDriverWait(driver, 30).until(
+        time.sleep(2)  # allow time for overlay / UI loading
+
+        WebDriverWait(driver, 60).until(
             EC.element_to_be_clickable((By.XPATH, elements_xpaths['Login_button']))
         )
         driver.find_element(By.XPATH, elements_xpaths['user']).send_keys(username)

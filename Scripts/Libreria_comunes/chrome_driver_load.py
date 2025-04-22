@@ -11,13 +11,13 @@ def load_chrome(directory):
 
     # Detect OS
     system = platform.system()
-
+    home = os.path.expanduser("~")
     # Set Chrome binary and ChromeDriver paths based on OS
     if system == "Windows":
-        chrome_binary_path = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
-        chromedriver_path = "C:\\Program Files\\Google\\Chrome\\chromedriver.exe"
+        chrome_binary_path = os.path.join(home, "Documents", "chrome-win64", "chrome.exe")
+        chromedriver_path = os.path.join(home, "Documents", "chromedriver-win64", "chromedriver.exe")
     elif system == "Darwin":  # macOS
-        home = os.path.expanduser("~")
+        
         chrome_binary_path = os.path.join(home, "chrome_testing", "chrome-mac-arm64", "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing")
         chromedriver_path = os.path.join(home, "chrome_testing", "chromedriver-mac-arm64", "chromedriver")
     else:
