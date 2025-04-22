@@ -81,30 +81,27 @@ def merge_SAI_files(SAI_folder, alta_pivot_columns, orden_pivot_columns,
     tuple(pd.DataFrame, pd.DataFrame)
         (df_altas, df_ordenes)
     """
-    # 1) Encontrar carpetas que acaben en 'Final'
+    # 1) Encontrar todas las carpetas que acaben en 'Final'
     finals = [
         os.path.join(SAI_folder, d)
         for d in os.listdir(SAI_folder)
         if os.path.isdir(os.path.join(SAI_folder, d)) and d.endswith("Final")
     ]
     if not finals:
-        raise FileNotFoundError("No se hallaron carpetas terminadas en 'Final' en " + SAI_folder)
+        raise FileNotFoundError(f"No se hallaron carpetas terminadas en 'Final' en {SAI_folder}")
 
-    # Para cada carpeta Final, podrías iterar o elegir una; aquí asumo que hay una sola:
-    folder_to_process = finals[0]
-
-    # 2) Listar archivos
-    files_ordenes = glob.glob(os.path.join(folder_to_process, "*Ordenes.xlsx"))
-    files_altas   = glob.glob(os.path.join(folder_to_process, "*Altas.xlsx"))
-
-    if not files_ordenes:
-        raise FileNotFoundError("No se hallaron archivos '*Ordenes.xlsx' en " + folder_to_process)
-    if not files_altas:
-        raise FileNotFoundError("No se hallaron archivos '*Altas.xlsx' en " + folder_to_process)
+    # 2) Recorrer cada carpeta 'Final' y recolectar todos los archivos
+    all_files_altas = []
+    all_files_ordenes = []
+    for folder in finals:
+        patrones_altas = glob.glob(os.path.join(folder, "*Altas.xlsx"))
+        patrones_ordenes = glob.glob(os.path.join(folder, "*Ordenes.xlsx"))
+        all_files_altas.extend(patrones_altas)
+        all_files_ordenes.extend(patrones_ordenes)
 
     # 3) Cargar y procesar
-    df_altas   = load_dataframes(files_altas,   date_regex, date_parse_format, alta_pivot_columns)
-    df_ordenes = load_dataframes(files_ordenes, date_regex, date_parse_format, orden_pivot_columns)
+    df_altas   = load_dataframes(all_files_altas,   date_regex, date_parse_format, alta_pivot_columns)
+    df_ordenes = load_dataframes(all_files_ordenes, date_regex, date_parse_format, orden_pivot_columns)
     
     # 4) Guardar el archivo
     output_path = os.path.join(SAI_folder, Output_filename)
