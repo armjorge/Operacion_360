@@ -132,6 +132,7 @@ def SAI_download(driver, username, password, range_date):
             WebDriverWait(driver, 300).until_not(
                 EC.element_to_be_clickable((By.XPATH, elements_xpaths['Ordenes_exportar']))
             )
+            time.sleep(5)
         except TimeoutException:
             print("Button remained clickable in Ordenes section. Possible download error.")
         # Wait until the export button becomes clickable again (download completion)
@@ -141,3 +142,4 @@ def SAI_download(driver, username, password, range_date):
         
     except Exception as e:
         print(f"An error occurred: {e}")
+    time.sleep(5)

@@ -10,6 +10,7 @@ def A_open_pdfs_in_folder(folder_path, string_to_change ):
     # Filter for PDFs
     pdf_files = [f for f in files if f.lower().endswith('.pdf')]
     pdf_files = A1_selectPDFS(pdf_files)
+
     for pdf in pdf_files:
         pdf_path = os.path.join(folder_path, pdf)
         if not os.path.exists(pdf_path):
@@ -56,6 +57,7 @@ def A1_selectPDFS(PDF_filelist):
     choice = input("Enter your choice (1 or 2): ").strip()
     
     if choice == "1":
+        print(PDF_filelist)
         return PDF_filelist
     elif choice == "2":
         filtered_files = [
@@ -65,6 +67,7 @@ def A1_selectPDFS(PDF_filelist):
         print("\nSummary of filtering logic:")
         print("Keeping files that start with 'NC' and do not end with '_SAT' or '_TXT'.")
         print(f"Files kept: {len(filtered_files)} out of {len(PDF_filelist)}")
+        print(filtered_files)
         return filtered_files
     else:
         print("Invalid choice. Returning the original list.")
