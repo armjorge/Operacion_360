@@ -14,7 +14,6 @@ import numpy as np
 import cv2
 import platform
 
-"""
 def read_QR_infile(file_path):
     #
     #Scan the given PDF for QR codes on every page,
@@ -77,155 +76,10 @@ def read_QR_infile(file_path):
         print(f"✗ No QR in {base}")
 
     return results
-"""
-import fitz      # PyMuPDF
-import numpy as np
-import cv2
 
-# optional, install with `pip install pyzbar Pillow`
-from pyzbar.pyzbar import decode as zbar_decode
-from PIL import Image
 
-def read_QR_infile(file_path):
-    """
-    Scan the given PDF for QR codes on every page.
-    1) Try embedded images
-    2) Fallback: render full page at 2× and 3×, raw + threshold
-    3) Final fallback: PyZbar on the best-quality render
-    Returns list of (modified_filename, qr_data).
-    """
-    results = []
-    base = os.path.splitext(os.path.basename(file_path))[0]
-
-    try:
-        doc = fitz.open(file_path)
-    except Exception as e:
-        print(f"Error opening {base}.pdf: {e}")
-        return results
-
-    for page_number in range(doc.page_count):
-        detector = cv2.QRCodeDetector()
-        found_any = False
-
-        # --- 1) embedded images ---
-        try:
-            images = doc.get_page_images(page_number)
-        except Exception as e:
-            print(f"  ⚠️ Skipping page {page_number} of {base}: {e}")
-            images = []
-
-        for img in images:
-            xref = img[0]
-            try:
-                pix = fitz.Pixmap(doc, xref)
-            except Exception as e:
-                continue
-
-            # to numpy BGR
-            raw = np.frombuffer(pix.samples, dtype=np.uint8)
-            raw = raw.reshape((pix.height, pix.stride))[:, : pix.width * pix.n]
-            raw = raw.reshape((pix.height, pix.width, pix.n))
-            cv_img = (cv2.cvtColor(raw, cv2.COLOR_RGBA2BGR)
-                      if pix.n == 4 else
-                      cv2.cvtColor(raw, cv2.COLOR_RGB2BGR)
-                      if pix.n == 3 else raw)
-            pix = None
-
-            qr_data, _, _ = detector.detectAndDecode(cv_img)
-            if qr_data:
-                results.append((f"{base}_SAT", qr_data))
-                found_any = True
-                break
-        if found_any:
-            print(f"✓ QR found in {base} (page {page_number}) via embedded image")
-            continue
-
-        # load page once for all render-based fallbacks
-        try:
-            page = doc.load_page(page_number)
-        except:
-            continue
-
-        # --- 2) render fallbacks at multiple scales + threshold ---
-        for scale in (2, 3):
-            mat = fitz.Matrix(scale, scale)
-            try:
-                pix = page.get_pixmap(matrix=mat, alpha=False)
-            except Exception as e:
-                continue
-
-            raw = np.frombuffer(pix.samples, dtype=np.uint8)
-            raw = raw.reshape((pix.height, pix.stride))[:, : pix.width * pix.n]
-            raw = raw.reshape((pix.height, pix.width, pix.n))
-            cv_img = (cv2.cvtColor(raw, cv2.COLOR_RGBA2BGR)
-                      if pix.n == 4 else
-                      cv2.cvtColor(raw, cv2.COLOR_RGB2BGR)
-                      if pix.n == 3 else raw)
-            pix = None
-
-            # 2a) try raw
-            qr_data, _, _ = detector.detectAndDecode(cv_img)
-            if qr_data:
-                results.append((f"{base}_SAT", qr_data))
-                found_any = True
-                print(f"✓ QR found in {base} (page {page_number}) at {scale}× raw")
-                break
-
-            # 2b) try grayscale+Otsu
-            gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
-            _, thr = cv2.threshold(gray, 0, 255,
-                                   cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            qr_data2, _, _ = detector.detectAndDecode(thr)
-            if qr_data2:
-                results.append((f"{base}_SAT", qr_data2))
-                found_any = True
-                print(f"✓ QR found in {base} (page {page_number}) at {scale}× thresholded")
-                break
-        if found_any:
-            continue
-
-        # --- 3) final fallback: PyZbar on best render (3×) ---
-        try:
-            mat = fitz.Matrix(3, 3)
-            pix = page.get_pixmap(matrix=mat, alpha=False)
-            raw = np.frombuffer(pix.samples, dtype=np.uint8)
-            raw = raw.reshape((pix.height, pix.stride))[:, : pix.width * pix.n]
-            raw = raw.reshape((pix.height, pix.width, pix.n))
-            cv_img = (cv2.cvtColor(raw, cv2.COLOR_RGBA2BGR)
-                      if pix.n == 4 else
-                      cv2.cvtColor(raw, cv2.COLOR_RGB2BGR)
-                      if pix.n == 3 else raw)
-            pil_img = Image.fromarray(cv_img)
-            pix = None
-
-            for barcode in zbar_decode(pil_img):
-                qr_data3 = barcode.data.decode('utf-8')
-                results.append((f"{base}_SAT", qr_data3))
-                found_any = True
-                print(f"✓ QR found in {base} (page {page_number}) via PyZbar")
-                break
-        except Exception:
-            pass
-
-        if not found_any:
-            print(f"✗ No QR anywhere on {base} page {page_number}")
-
-    if not results:
-        print(f"✗ No QR anywhere in {base}")
-    return results
-
-def generate(directory):
-    # Construct CSV file name based on the directory name
-    directory_name = os.path.basename(directory)
-    csv_file_name = os.path.join(directory, f"{directory_name}.csv")
+def STEP_A_generate(directory, csv_file_name):  # Generate the CSV(directory)
     #print(f"built csv file path {csv_file_name}")
-    
-    # Build a list of already processed files (those ending with _SAT.pdf are assumed downloaded)
-    directory_downloaded_files = [
-        f[:-4] for f in os.listdir(directory) 
-        if not (f.endswith("_TXT.pdf") or f.endswith("_REM.pdf"))
-    ]
-
     with open(csv_file_name, 'w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(["Guardar como", "Link"])  # Write CSV header
@@ -243,8 +97,8 @@ def generate(directory):
                 for modified_name, link in qr_pairs:
                     writer.writerow([modified_name, link])
 
-    print(f"Completed writing to {os.path.basename(csv_file_name)}")
-
+    print(f"Completed writing to {csv_file_name}")
+    
     # Load the generated CSV to check if it has content
     df_uploadMergelist = pd.read_csv(csv_file_name)
 
@@ -254,57 +108,11 @@ def generate(directory):
     else:
         print(f"\n*******************************\nHay {len(df_uploadMergelist)} facturas por descargar. \n*******************************\n")
 
-"""
-def load_chrome(directory):
-    Launch Chrome with OS-specific paths and consistent configuration
 
-    # Detect OS
-    system = platform.system()
-
-    # Set Chrome binary and ChromeDriver paths based on OS
-    if system == "Windows":
-        chrome_binary_path = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
-        chromedriver_path = "C:\\Program Files\\Google\\Chrome\\chromedriver.exe"
-    elif system == "Darwin":  # macOS
-        home = os.path.expanduser("~")
-        chrome_binary_path = os.path.join(home, "chrome_testing", "chrome-mac-arm64", "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing")
-        chromedriver_path = os.path.join(home, "chrome_testing", "chromedriver-mac-arm64", "chromedriver")
-    else:
-        print(f"Unsupported OS: {system}")
-        return None
-
-    # Set Chrome options
-    chrome_options = Options()
-    chrome_options.binary_location = chrome_binary_path
-
-    prefs = {
-        "download.default_directory": os.path.abspath(directory),
-        "download.prompt_for_download": False,
-        "download.directory_upgrade": True,
-        "plugins.always_open_pdf_externally": True
-    }
-    chrome_options.add_experimental_option("prefs", prefs)
-
-    chrome_options.add_argument("--disable-extensions")
-    chrome_options.add_argument("--disable-popup-blocking")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--window-size=1920x1080")
-
-    try:
-        # Initialize ChromeDriver with the correct service path
-        service = Service(chromedriver_path)
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-        return driver
-    except Exception as e:
-        print(f"Failed to initialize Chrome driver: {e}")
-        return None
-"""
 # Function to read the CSV file in the specified directory
 def read_csv(directory):
     print("\nReading CSV\n")
-    file_path = os.path.join(directory, f"{directory}.csv")
+    file_path = os.path.join(directory, f"{os.path.basename(directory)}.csv")
     
     if not os.path.exists(file_path):
         print(f"CSV file not found in {directory}")
@@ -380,7 +188,29 @@ def download_pdfs(data, directory, chrome_driver):
         try:
             pdf_data = driver.execute_cdp_cmd("Page.printToPDF", {
                 "landscape": False,
-                "printBackground": True
+                "printBackground": True,
+                "displayHeaderFooter": True,
+                # Márgenes para dejar espacio a header/footer
+                "marginTop":    0.5,  
+                "marginBottom": 0.5,
+                "marginLeft":   0.4,
+                "marginRight":  0.4,
+                # Plantilla de cabecera: fecha y título centrados
+                "headerTemplate": """
+                <div style="width:100%; text-align:center; font-size:10px; color: #444;">
+                    <span class="date"></span>
+                    &nbsp;&nbsp;|&nbsp;&nbsp;
+                    <span class="title"></span>
+                </div>
+                """,
+                # Plantilla de pie: URL y paginación centrados
+                "footerTemplate": """
+                <div style="width:100%; text-align:center; font-size:10px; color: #444;">
+                    <span class="url"></span>
+                    &nbsp;&nbsp;|&nbsp;&nbsp;
+                    Página <span class="pageNumber"></span> de <span class="totalPages"></span>
+                </div>
+                """
             })
             pdf_content = base64.b64decode(pdf_data['data'])
         except Exception as e:
@@ -409,11 +239,43 @@ def download_pdfs(data, directory, chrome_driver):
 
 # Main function to drive the program
 def descargaQRSs(directory, chrome_driver):
-    print("generating CSV\n")
-    generate(directory)  # Generate the CSV
-    time.sleep(2)    
-    #data = read_csv(directory)
-    #if not data:
-    #    print("No data found. Exiting.")
-    #    return
-    #download_pdfs(data, directory, chrome_driver)
+    # Construct CSV file name based on the directory name
+    directory_name = os.path.basename(directory)
+    csv_file_name = os.path.join(directory, f"{directory_name}.csv")
+
+    while True:
+        # Mostrar menú
+        print("\n¿Qué quieres hacer?")
+        print("  1) Generar lista de QR's a descargar")
+        print("  2) Descargar acuses del SAT")
+        print("  3) Salir")
+        
+        choice = input("Elige una opción [1/2/3]: ").strip()
+        
+        if choice == '1':
+            # Opción 1: generamos el CSV
+            print("\nGenerando CSV...\n")
+            STEP_A_generate(directory, csv_file_name)
+            time.sleep(2)
+        
+        elif choice == '2':
+            # Opción 2: intentamos leer y descargar
+            data = read_csv(directory)
+            if not data:
+                print("\nNo localizamos CSV a descargar. Prueba a generarlo primero con la opción 1.")
+                # Volver al menú
+                continue
+            
+            print("\nDescargando los acuses del SAT...\n")
+            download_pdfs(data, directory, chrome_driver)
+        
+        elif choice == '3':
+            # Salir del bucle
+            print("\nSaliendo. ¡Hasta luego!")
+            break
+        
+        else:
+            # Validación de entrada
+            print("\nOpción inválida. Por favor ingresa 1, 2 o 3.")
+            continue
+
