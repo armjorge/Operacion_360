@@ -268,15 +268,27 @@ def PREI_downloader(driver, username, password, download_directory, excel_file):
       2. Clean the download directory and check which files are missing/invalid.
       3. Download files for the missing date ranges.
     """
+    """
     df = pd.read_excel(excel_file)
     # Remove invalid or outdated files and get missing date ranges
     df_missing = check_missing_files(df, username, download_directory)
     if df_missing.empty:
         print("All files are present and valid.")
     else:
-        print("Missing or invalid files for the following date ranges:")
-        print(df_missing.head())
+        #print("Missing or invalid files for the following date ranges:")
+        #print(df_missing.head(20))
         for index, row in df_missing.iterrows():
             print(f"{convert_date_format(row['DATE START'])} to {convert_date_format(row['DATE END'])}")
         # Attempt to download the missing files
         download_files(driver, df_missing, username, password)
+    """
+    df = pd.read_excel(excel_file)
+    df_missing = check_missing_files(df, username, download_directory)
+    if df_missing.empty:
+        print("✅ All files are present and valid.")
+        return True
+    else:
+        for index, row in df_missing.iterrows():
+            print(f"⬇️ Downloading: {convert_date_format(row['DATE START'])} to {convert_date_format(row['DATE END'])}")
+        download_files(driver, df_missing, username, password)
+        return False
