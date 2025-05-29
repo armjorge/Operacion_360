@@ -126,11 +126,6 @@ def A_confirm_files_exists(folder_path):
         print("Error: Failed to load Excel files. Exception:", str(e))
         return None, None
 
-    # Diagnose if the required column is missing before attempting to process it
-    if 'ORDEN DE SUMINISTRO' not in df_audit.columns:
-        print("Error: The column 'ORDEN DE SUMINISTRO' is missing in the Audit Excel file.")
-        print("Please verify that the file contains this column and that its name is correct.")
-        return None, None
 
     if 'ORDEN DE SUMINISTRO' not in df_relacion.columns:
         print("Error: The column 'ORDEN DE SUMINISTRO' is missing in the Relacion Excel file.")
@@ -138,7 +133,7 @@ def A_confirm_files_exists(folder_path):
         return None, None
 
     # Remove any whitespace (spaces, tabs, newlines, etc.) from the 'ORDEN DE SUMINISTRO' column
-    df_audit['ORDEN DE SUMINISTRO'] = df_audit['ORDEN DE SUMINISTRO'].astype(str).str.replace(r'\s', '', regex=True)
+    
     df_relacion['ORDEN DE SUMINISTRO'] = df_relacion['ORDEN DE SUMINISTRO'].astype(str).str.replace(r'\s', '', regex=True)
     
     print("Dataframes loaded, ready for the next step")
@@ -186,7 +181,7 @@ def C_generating_single_dataframe(df_INSABI_gsheet, df_audit, df_relacion, folde
 
     # Define the required columns for each dataframe
     required_columns_INSABI = ['Contrato', 'Factura', 'UUID', 'NÚMERO DE ORDEN DE SUMINISTRO', 'Importe']
-    required_columns_audit = ['ORDEN DE SUMINISTRO', "NOTA DE CREDITO (FOLIO Y SERIE)", "FOLIO FISCAL NOTA DE CREDITO" ]#'Filename', 'XML_UUID_NC', 'XML_Total']
+    required_columns_audit = ["Filename", "XML_UUID_NC" ]#'ORDEN DE SUMINISTRO','Filename', 'XML_UUID_NC', 'XML_Total']
     required_columns_relacion = ['ORDEN DE SUMINISTRO', 'PENA', 'Folio NC']
 
     # Check for missing columns in each dataframe
@@ -241,12 +236,25 @@ def C_generating_single_dataframe(df_INSABI_gsheet, df_audit, df_relacion, folde
     )
     master_df['FOLIO FISCAL NOTA DE CREDITO'] = master_df['NOTA DE CREDITO (FOLIO Y SERIE)'].apply(
         #lambda x: C1_returning_values(df_audit, x, 'Filename', 'XML_UUID_NC')
-        lambda x: C1_returning_values(df_audit, x, 'NOTA DE CREDITO (FOLIO Y SERIE)', 'FOLIO FISCAL NOTA DE CREDITO')
+        lambda x: C1_returning_values(df_audit, x, 'Filename', 'XML_UUID_NC')
     )
     master_df['MONTO SANCIONADO'] = master_df['ORDEN DE SUMINISTRO'].apply(
         lambda x: C1_returning_values(df_relacion, x, 'ORDEN DE SUMINISTRO', 'PENA')
     )
     master_df['NUMERO DE CEDULA'] = folder_name  # Fixed value from global variable
+
+    # 1) Strip out any “$” or thousands‐separators and convert to float
+    for c in ['MONTO FACTURADO', 'MONTO SANCIONADO']:
+        master_df[c] = (
+            master_df[c]
+            .astype(str)                                # in case there are mixed types
+            .str.replace(r'[\$,]', '', regex=True)     # remove $ and commas
+            .astype(float)
+        )
+
+    # 2) Re-assign each value back to a currency string “$1,234.56”
+    for c in ['MONTO FACTURADO', 'MONTO SANCIONADO']:
+        master_df[c] = master_df[c].map('${:,.2f}'.format)
 
     return master_df
 

@@ -74,7 +74,7 @@ def A1_selectPDFS(PDF_filelist):
         return PDF_filelist
 
 def PDFsaPUE(directory_path, string_to_change):
-    print("\n**********\nAgrega: \n{string_to_change}\nA todas las Notas\n**********\n")
+    print(f"\n**********\nAgrega: \n{string_to_change}\nA todas las Notas\n**********\n")
     A_open_pdfs_in_folder(directory_path, string_to_change)
     
 
