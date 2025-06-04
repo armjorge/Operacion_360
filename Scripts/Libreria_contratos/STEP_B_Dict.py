@@ -4,26 +4,74 @@ import ast
 import calendar
 import os
 import ast
-
 from folders_files_open import open_excel
 
-def STEP_B_get_string_populated(df_clientes,  tipo, institucion_column, selected_procedimiento, folder_path): 
-    print("printing df_clientes before passing to generar_skus", df_clientes.head())
-    print("\t🛠️ Iniciando la generación del diccionario para el contrato...\n")
-    # Crear el diccionario poblado
+# Columnas df_pickle_contratos  = ['Institución', 'Procedimiento', 'Contrato', 'Fecha Inicio', 'Fecha Fin', 'Productos y precio', 'Total', 'Nombre del archivo', 'Estatus', 'Convenio modificatorio', 'Objeto del convenio']
+# Columnas df_desagregada_procedimiento = ["Institución", "Procedimiento", "Clave", "Descripción", "Precio", "Piezas"]
 
-    institucion_elegida = STEP_B_populate_from_df(df_clientes, institucion_column)
-    orchestration_dict = f"""
-    {{
-        'Institución': "{institucion_elegida}",
-        'Procedimiento': "{selected_procedimiento}",
-        'Contrato': "{STEP_B_contrato(tipo, 'Contrato')}",
-        'Modificatorio': "{STEP_B_contrato(tipo, 'Modificatorio') }",
-        'Fecha Inicio': "{STEP_B_fechas(tipo, 'Fecha Inicio')}",
-        'Fecha Fin': "{STEP_B_fechas(tipo, 'Fecha Fin')}",
-        'Estatus': "{STEP_B_estatus()}",
-        'SKU': "{generar_skus(df_clientes, institucion_elegida, folder_path)}"
-    }}
+def STEP_B_get_string_populated(df_desagregada_procedimiento,  tipo, institucion_column, selected_procedimiento, folder_path): 
+    print("\t🛠️ Iniciando la generación del diccionario para el contrato...\n")
+    # (1) Construyo la ruta al pickle de contratos
+    pickle_base_extraida = os.path.join(folder_path, "Implementación", "Contratos", f"{selected_procedimiento}.pickle"s)
+
+    # (2) Trato de cargar el pickle; si no existe o está vacío, asigno DataFrame vacío
+    if os.path.exists(pickle_base_extraida):
+        try:
+            df_pickle_contratos = pd.read_pickle(pickle_base_extraida)
+            # Si load_as_dataframe no existe, reemplazar por:
+            # df_pickle_contratos = pd.read_pickle(pickle_base_extraida)
+        except Exception as e:
+            print(f"⚠️ Error cargando pickle de contratos: {e}")
+            df_pickle_contratos = pd.DataFrame()
+    else:
+        df_pickle_contratos = pd.DataFrame()
+
+    instrumento_a_capturar = ""
+    columna_df_contratos = "Contrato"
+
+    # (3) Si df_pickle_contratos NO está vacío, muestro contratos existentes y pido input
+    if not df_pickle_contratos.empty:
+        print("Contratos existentes:", df_pickle_contratos[columna_df_contratos].unique())
+        user_input = input("¿Ya existe previamente capturado? (si/no): ").strip().lower()
+
+        if user_input == "no":
+            # El método STEP_B_populate_from_df debe devolver un string con el contrato elegido
+            instrumento_a_capturar = STEP_B_populate_from_df(df_pickle_contratos, columna_df_contratos)
+        else:
+            # Si respondió "sí" o cualquier otra cosa, dejo que escriba el nombre manualmente
+            instrumento_a_capturar = input("Escribe el nombre del contrato: ").strip()
+    else:
+        # (4) Si no había pickle o está vacío, pido directo el nombre del contrato
+        instrumento_a_capturar = input("Escribe el nombre del contrato: ").strip()
+
+    # (5) Ahora creo/selecciono la institución usando df_clientes
+    institucion_elegida = STEP_B_populate_from_df(df_desagregada_procedimiento, institucion_column)
+    
+    if tipo == 'Primigenio': 
+        orchestration_dict = f"""
+        {{
+            'Institución': "{institucion_elegida}",
+            'Procedimiento': "{df_desagregada_procedimiento['Procedimiento'].unique()}",
+            'Contrato': "{instrumento_a_capturar}",
+            'Fecha Inicio': "{STEP_B_fechas(tipo, 'Fecha Inicio')}",
+            'Fecha Fin': "{STEP_B_fechas(tipo, 'Fecha Fin')}",
+            'Modificatorio': "{STEP_B_contrato(tipo, 'Modificatorio') }",
+            'Productos y precio': "{generar_skus(df_desagregada_procedimiento, institucion_elegida, folder_path)}"
+            'Estatus': "{STEP_B_estatus()}",
+        }
+    """
+    elif tipo == 'Modificatorio':
+        orchestration_dict = f"""
+        {{
+            'Institución': "{institucion_elegida}",
+            'Procedimiento': "{df_desagregada_procedimiento['Procedimiento'].unique()}",
+            'Contrato': "{instrumento_a_capturar}",
+            'Modificatorio': "{STEP_B_contrato(tipo, 'Modificatorio') }",
+            'Fecha Inicio': "{STEP_B_fechas(tipo, 'Fecha Inicio')}",
+            'Fecha Fin': "{STEP_B_fechas(tipo, 'Fecha Fin')}",
+            'Estatus': "{STEP_B_estatus()}",
+            'SKU': "{generar_skus(df_desagregada_procedimiento, institucion_elegida, folder_path)}"
+        }}
     """
 
     # Mostrar valores antes de devolver el diccionario
@@ -247,9 +295,8 @@ def STEP_B_populate_from_df(df_to_load, column):
     Returns:
         Selected value from the column.
     """
-
-    # Check if the pickle file exists
     """
+    # Check if the pickle file exists
     if not os.path.exists(df_to_load):
         print("❌ Archivo no localizado, procedemos a crear uno.")
         df = pd.DataFrame()  # Create an empty DataFrame
@@ -258,6 +305,7 @@ def STEP_B_populate_from_df(df_to_load, column):
     """
     # Load the DataFrame
     #df = pd.read_pickle(df_to_load)
+
     if not df_to_load.empty:
         print("✅ Archivo con información cargada.")
 
