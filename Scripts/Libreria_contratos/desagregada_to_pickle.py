@@ -61,7 +61,7 @@ def load_pickles(desagregadas_folder):
 
 
 
-def base_procedimiento_pickle(Folder_procedimiento, procedimiento, columnas):
+def base_contratos_convenios_pickle(Folder_procedimiento, procedimiento, columnas):
     """
     Asegura que exista un pickle para el procedimiento dado:
       - Si NO existe: crea uno vacío con las columnas indicadas.
@@ -84,12 +84,13 @@ def base_procedimiento_pickle(Folder_procedimiento, procedimiento, columnas):
     # 3. Crear si no existe
     if not os.path.exists(filepath):
         # DataFrame vacío con las columnas
-        df_empty = pd.DataFrame(columns=columnas)
-        df_empty.to_pickle(filepath)
+        df_contratos_convenios = pd.DataFrame(columns=columnas)
+        df_contratos_convenios.to_pickle(filepath)
         print(f"✔ No se encontró '{procedimiento}.pickle'. Se creó un DataFrame vacío con columnas {columnas}.")
-        return df_empty
+        return df_contratos_convenios
 
     # 4. Si existe, cargarlo
-    df_procedimientos = pd.read_pickle(filepath)
-    print(f"✔ Cargado pickle existente: '{procedimiento}.pickle' ({len(df_procedimientos)} filas).")
-    return df_procedimientos
+    df_contratos_convenios = pd.read_pickle(filepath)
+    
+    print(f"✔ Cargado pickle existente: '{procedimiento}.pickle' ({len(df_contratos_convenios)} filas).")
+    return df_contratos_convenios

@@ -5,93 +5,147 @@ import calendar
 import os
 import ast
 from folders_files_open import open_excel
+import re
 
-# Columnas df_pickle_contratos  = ['Institución', 'Procedimiento', 'Contrato', 'Fecha Inicio', 'Fecha Fin', 'Productos y precio', 'Total', 'Nombre del archivo', 'Estatus', 'Convenio modificatorio', 'Objeto del convenio']
-# Columnas df_desagregada_procedimiento = ["Institución", "Procedimiento", "Clave", "Descripción", "Precio", "Piezas"]
 
 def STEP_B_get_string_populated(df_desagregada_procedimiento,  tipo, institucion_column, selected_procedimiento, folder_path): 
+    # df_desagregada_procedimiento = ["Institución", "Procedimiento", "Clave", "Descripción", "Precio", "Piezas"]
+    # tipo: Primigenio o Modificatorio
+    # institucion_column = 'Institución' 
+    # folder_path = os.path.join(folder_root, "Implementación", "Contratos", f"{procedimiento}")
+    # selected_procedimiento: string con el nombre de archivo o carpeta
+    
     print("\t🛠️ Iniciando la generación del diccionario para el contrato...\n")
-    # (1) Construyo la ruta al pickle de contratos
-    pickle_base_extraida = os.path.join(folder_path, "Implementación", "Contratos", f"{selected_procedimiento}.pickle"s)
+    # (1) Construyo la ruta al pickle de contratos_convenios
+    contratos_convenios = os.path.join(folder_path, f"{selected_procedimiento}.pickle")
 
     # (2) Trato de cargar el pickle; si no existe o está vacío, asigno DataFrame vacío
-    if os.path.exists(pickle_base_extraida):
+    if os.path.exists(contratos_convenios):
         try:
-            df_pickle_contratos = pd.read_pickle(pickle_base_extraida)
-            # Si load_as_dataframe no existe, reemplazar por:
-            # df_pickle_contratos = pd.read_pickle(pickle_base_extraida)
+            df_contratos_convenios = pd.read_pickle(contratos_convenios)
         except Exception as e:
             print(f"⚠️ Error cargando pickle de contratos: {e}")
-            df_pickle_contratos = pd.DataFrame()
+            df_contratos_convenios = pd.DataFrame()
     else:
-        df_pickle_contratos = pd.DataFrame()
+        df_contratos_convenios = pd.DataFrame()
 
     instrumento_a_capturar = ""
     columna_df_contratos = "Contrato"
 
     # (3) Si df_pickle_contratos NO está vacío, muestro contratos existentes y pido input
-    if not df_pickle_contratos.empty:
-        print("Contratos existentes:", df_pickle_contratos[columna_df_contratos].unique())
+    if not df_contratos_convenios.empty:
+        print("Contratos existentes:", df_contratos_convenios[columna_df_contratos].unique())
         user_input = input("¿Ya existe previamente capturado? (si/no): ").strip().lower()
-
-        if user_input == "no":
+        if user_input == "si":
             # El método STEP_B_populate_from_df debe devolver un string con el contrato elegido
-            instrumento_a_capturar = STEP_B_populate_from_df(df_pickle_contratos, columna_df_contratos)
+            print(f"Contrato capturado, por favor elige el contrato de la lista siguiente, columna  {columna_df_contratos} del dataframe df_contratos_convenios")
+            instrumento_a_capturar = STEP_B_populate_from_df(df_contratos_convenios, columna_df_contratos)
         else:
-            # Si respondió "sí" o cualquier otra cosa, dejo que escriba el nombre manualmente
+            # Si respondió "no" o cualquier otra cosa, dejo que escriba el nombre manualmente
+            print("\nContrato no capturado, por favor ingresa el nombre del contrato\n")
             instrumento_a_capturar = input("Escribe el nombre del contrato: ").strip()
     else:
         # (4) Si no había pickle o está vacío, pido directo el nombre del contrato
         instrumento_a_capturar = input("Escribe el nombre del contrato: ").strip()
-
+    # Si tipo == Modificatorio & df_contratos_convenios.empty: generar error, no puedes capturar un modificatorio para el que no has capturado su primigenio
     # (5) Ahora creo/selecciono la institución usando df_clientes
     institucion_elegida = STEP_B_populate_from_df(df_desagregada_procedimiento, institucion_column)
-    
+    # Columnas df_pickle_contratos  = ['Institución', 'Procedimiento', 'Contrato', 'Fecha Inicio', 'Fecha Fin', 
+    # 'Productos y precio', 'Total', 'Nombre del archivo', 'Estatus', 'Convenio modificatorio', 'Objeto del convenio']
+    # Falta la lógica: si ya está capturado, pregunta si quieres actualizar la fecha, la idea general es que no sea necesario capturar de nuevo todo. 
     if tipo == 'Primigenio': 
-        orchestration_dict = f"""
-        {{
+        orchestration_dict_part_1 = f"""
             'Institución': "{institucion_elegida}",
-            'Procedimiento': "{df_desagregada_procedimiento['Procedimiento'].unique()}",
+            'Procedimiento': "{df_desagregada_procedimiento['Procedimiento'].unique()[0]}",
             'Contrato': "{instrumento_a_capturar}",
-            'Fecha Inicio': "{STEP_B_fechas(tipo, 'Fecha Inicio')}",
-            'Fecha Fin': "{STEP_B_fechas(tipo, 'Fecha Fin')}",
-            'Modificatorio': "{STEP_B_contrato(tipo, 'Modificatorio') }",
-            'Productos y precio': "{generar_skus(df_desagregada_procedimiento, institucion_elegida, folder_path)}"
-            'Estatus': "{STEP_B_estatus()}",
-        }
-    """
+            'Fecha Inicio': "{STEP_B_fechas('Fecha Inicio')}",
+            'Fecha Fin': "{STEP_B_fechas('Fecha Fin')}"
+            """
+        skus_str= generar_skus(df_desagregada_procedimiento, institucion_elegida, folder_path)
+        skus = ast.literal_eval(skus_str)
+        #print('\n Diccionario pasado: ', skus, '\n')
+        total = sum(item['Precio'] * item['Piezas'] for item in skus)
+        estatus = STEP_B_estatus()
+        nombre_final = f"{instrumento_a_capturar}_{tipo}_{estatus}.pdf"
+        nombre_del_archivo = step_B_santize_filename(nombre_final)
+        orchestration_dict_part_2 = f"""
+            'Productos y precio': "{skus}",
+            'Total': "{total}", 
+            'Nombre del archivo': "{nombre_del_archivo}",
+            'Estatus': "{estatus}",
+            'Convenio modificatorio': "", 
+            'Objeto del convenio': ""
+        """
+        orchestration_dict = f"""{{{orchestration_dict_part_1}, {orchestration_dict_part_2}}}"""
+
+
     elif tipo == 'Modificatorio':
-        orchestration_dict = f"""
-        {{
+        orchestration_dict_part_1 = f"""
             'Institución': "{institucion_elegida}",
             'Procedimiento': "{df_desagregada_procedimiento['Procedimiento'].unique()}",
             'Contrato': "{instrumento_a_capturar}",
-            'Modificatorio': "{STEP_B_contrato(tipo, 'Modificatorio') }",
-            'Fecha Inicio': "{STEP_B_fechas(tipo, 'Fecha Inicio')}",
-            'Fecha Fin': "{STEP_B_fechas(tipo, 'Fecha Fin')}",
+            'Fecha Inicio': "{STEP_B_fechas('Fecha Inicio')}",
+            'Fecha Fin': "{STEP_B_fechas('Fecha Fin')}"
+            """
+        skus_str= generar_skus(df_desagregada_procedimiento, institucion_elegida, folder_path)
+        skus = ast.literal_eval(skus_str)
+        print('\n Diccionario pasado: ', skus, '\n')
+        total = sum(item['Precio'] * item['Piezas'] for item in skus)
+        convenio_modificatorio_subsecuente = 1 # Lo puedes definir automáticamente filtrando el df_contratos_convenios para == instrumento_a_capturar 
+        nombre_del_archivo = step_B_santize_filename(instrumento_a_capturar) + ' CM' + convenio_modificatorio_subsecuente
+        orchestration_dict_part_2 = f"""
+            'Productos y precio': "{skus}",
+            'Total': "{total}", 
+            'Nombre del archivo': "{instrumento_a_capturar}",
             'Estatus': "{STEP_B_estatus()}",
-            'SKU': "{generar_skus(df_desagregada_procedimiento, institucion_elegida, folder_path)}"
-        }}
-    """
+            'Convenio modificatorio': "", 
+            'Objeto del convenio': ""
+        """
+        orchestration_dict = f"""{{{orchestration_dict_part_1}, {orchestration_dict_part_2}}}"""
 
     # Mostrar valores antes de devolver el diccionario
-    print("\n🔹 Diccionario generado con valores actuales:")
-    print(orchestration_dict)
+    #print("\n🔹 Diccionario generado con valores actuales:")
+    #print(orchestration_dict)
     computer_dict = STEP_B_dict_validation(orchestration_dict)
 
-    return orchestration_dict, computer_dict
+    # Guardar el diccionario generado al dataframe si no existe y reemplazar el archivo. 
+
+    mask = pd.Series(True, index=df_contratos_convenios.index)
+    for col, val in computer_dict.items():
+        # Si alguna columna no existiera, esto levantaría KeyError.
+        # Pero asumimos que todas las llaves de computer_dict están en df_contratos_convenios.columns.
+        mask &= (df_contratos_convenios[col] == val)
+
+    already_exists = mask.any()
+
+    if not already_exists:
+        # (4) Crear un DataFrame de una sola fila a partir de computer_dict
+        new_row = pd.DataFrame([computer_dict])
+
+        # (5) Concatenar esa fila con el DataFrame original
+        df_contratos_convenios = pd.concat(
+            [df_contratos_convenios, new_row],
+            ignore_index=True
+        )
+
+        # (6) Sobrescribir el pickle
+        df_contratos_convenios.to_pickle(contratos_convenios)
+        print("Se agregó la fila y se guardó en el pickle.")
+    else:
+        print("Esa fila ya existe en df_contratos_convenios; no se hace nada.")
+    return computer_dict
 
 
 def generar_skus(df_clientes, institucion_elegida, folder_path):
+    # df_desagregada_procedimiento = ["Institución", "Procedimiento", "Clave", "Descripción", "Precio", "Piezas"]
+    
     print("🚀 Comenzando la función para capturar máximos por contrato")
-    #Index(['Institución', 'Procedimiento', 'Clave', 'Descripción', 'Precio', 'Total']
-    #df_contrato= df_clientes[['Institución', 'Clave', 'Precio', 'Total']]['Institución'] == institucion_column
-    df_contrato = df_clientes[df_clientes['Institución'] == institucion_elegida][['Institución', 'Clave', 'Precio', 'Total']]
+    df_contrato = df_clientes[df_clientes['Institución'] == institucion_elegida][['Institución', 'Clave', 'Precio', 'Piezas']]
     print("Columna institucional", institucion_elegida)
     print("Retira las claves que no se encuentren en el contrato y modifica el total\nEstá basado en la demanda desagregada")
-    print(df_contrato.head())
+    #print(df_contrato.head())
     # Define the temporary Excel file path
-    temporal_excel_file = os.path.join(folder_path, "Máximos temporal.xlsx")
+    temporal_excel_file = os.path.join(folder_path, f"{institucion_elegida}_Máximos temporal.xlsx")
 
     # Delete the file if it already exists
     if os.path.exists(temporal_excel_file):
@@ -113,26 +167,29 @@ def generar_skus(df_clientes, institucion_elegida, folder_path):
                 continue
 
             print("\n📊 Verifica las cantidades máximas por clave:")
-            print(sku_df[['Clave', 'Total']].head())
+            print(sku_df[['Clave', 'Piezas']].head())
 
-            is_complete = input("✅ Las cantidades máximas por clave son correctas? (s/n): ").strip().lower()
+            is_complete = input("✅ Las cantidades máximas por clave son correctas? (si/no): ").strip().lower()
 
-            if is_complete == "s":
+            if is_complete == "si":
                 print("✔️ Confirmación completada con éxito.")
                 # Generate SKU string and return inside the loop
                 sku_string = ", ".join(
-                    f"{{'Clave': '{row['Clave']}', 'Precio': {row['Precio']}, 'Máximo': {row['Total']}}}"
+                    f"{{'Clave': '{row['Clave']}', 'Precio': {row['Precio']}, 'Piezas': {row['Piezas']}}}"
                     for _, row in sku_df.iterrows()
                 )
+                os.remove(temporal_excel_file)
+                print("Archivo temporal eliminado")
                 return f"[{sku_string}]"
 
-            elif is_complete == "n":
+            elif is_complete == "no":
                 print("🔄 Por favor, actualiza el archivo y vuelve a intentar.")
             else:
                 print("⚠️ Respuesta no válida. Introduce 's' para sí o 'n' para no.")
 
         except Exception as e:
             print(f"❌ Error al cargar el archivo de Excel: {e}")
+            
            
 def STEP_B_contrato(tipo, input_field):
     while True:
@@ -163,76 +220,71 @@ def STEP_B_contrato(tipo, input_field):
             print(f"\n\tCombinación de campo {input_field} y tipo {tipo} no considerado en el arbol de decisiones de Contratos, saliendo del código sin return variable\n")
             break
 
-def input_captura_fechas():
-    input_day = "¿Cuál es día? (2 dígitos)?: "            
-    input_mes = "¿Cuál es mes? (2 dígitos)?: "            
-    input_year = "¿Cuál es el año(4 dígitos)?: "
-    mm_dd_digitos = 2
-    mes_enero = 1
-    mes_diciembre = 12
-    year_digits = 4
-    year_min = 2020
-    year_max = 2060
-    def get_specific_digits_as_string(prompt, needed_digits, min_input, max_input):
-        """
-        Prompts the user for input and validates it using specific conditions:
-        - Input must be numeric.
-        - Input must have the specified number of digits.
-        - Input must fall within the specified range.
-        """
-        while True:
-            user_input = input(prompt)
-            error_message = "Vuelve a intentar"
-            if user_input.isdigit() and len(user_input) == needed_digits and min_input <= int(user_input) <= max_input:
-                return user_input
-            print(f"{error_message}, necesitas meter un número de mín de {min_input} y máx {max_input} caracteres")    
-    mes = get_specific_digits_as_string(input_mes, mm_dd_digitos, mes_enero, mes_diciembre)
-    year = get_specific_digits_as_string(input_year, year_digits, year_min, year_max)
-    day_min = 1
-    # Función para obtener los días máximos de ese mes. 
-    def get_month_days(year, month):
-        """
-        Returns the maximum number of days in a given month for a specific year.
-        
-        Parameters:
-            year (str or int): The year in 4-digit format.
-            month (str): The month in 2-digit string format.
 
-        Returns:
-            int: Maximum number of days in the specified month.
-        """
+def STEP_B_fechas(input_field):
+    def input_captura_fechas():
+        input_day = "¿Cuál es día? (2 dígitos)?: "            
+        input_mes = "¿Cuál es mes? (2 dígitos)?: "            
+        input_year = "¿Cuál es el año(4 dígitos)?: "
+        mm_dd_digitos = 2
+        mes_enero = 1
+        mes_diciembre = 12
+        year_digits = 4
+        year_min = 2020
+        year_max = 2060
+        def get_specific_digits_as_string(prompt, needed_digits, min_input, max_input):
+            """
+            Prompts the user for input and validates it using specific conditions:
+            - Input must be numeric.
+            - Input must have the specified number of digits.
+            - Input must fall within the specified range.
+            """
+            while True:
+                user_input = input(prompt)
+                error_message = "Vuelve a intentar"
+                if user_input.isdigit() and len(user_input) == needed_digits and min_input <= int(user_input) <= max_input:
+                    return user_input
+                print(f"{error_message}, necesitas meter un número de mín de {min_input} y máx {max_input} caracteres")    
+        mes = get_specific_digits_as_string(input_mes, mm_dd_digitos, mes_enero, mes_diciembre)
+        year = get_specific_digits_as_string(input_year, year_digits, year_min, year_max)
+        day_min = 1
+        # Función para obtener los días máximos de ese mes. 
+        def get_month_days(year, month):
+            """
+            Returns the maximum number of days in a given month for a specific year.
+            
+            Parameters:
+                year (str or int): The year in 4-digit format.
+                month (str): The month in 2-digit string format.
 
-        # Convert inputs to integers
-        year = int(year)
-        month = int(month)
+            Returns:
+                int: Maximum number of days in the specified month.
+            """
 
-        # Get the last day of the month
-        day_max = calendar.monthrange(year, month)[1]
+            # Convert inputs to integers
+            year = int(year)
+            month = int(month)
 
-        return day_max
-    day_max = get_month_days(year,mes)
-    day = get_specific_digits_as_string(input_day, mm_dd_digitos, day_min, day_max)            
-    date = f"{day}/{mes}/{year}"
-    return date
+            # Get the last day of the month
+            day_max = calendar.monthrange(year, month)[1]
 
-def STEP_B_fechas(tipo,input_field):
+            return day_max
+        day_max = get_month_days(year,mes)
+        day = get_specific_digits_as_string(input_day, mm_dd_digitos, day_min, day_max)            
+        date = f"{day}/{mes}/{year}"
+        return date
+
     while True:
-        print("Capturaremos la fecha de inicio del contrato")
-        if tipo == 'Primigenio' and input_field == 'Fecha Inicio':
+        print("\nCapturaremos la fecha de inicio del contrato")
+        if input_field == 'Fecha Inicio':
             fecha_inicio = input_captura_fechas()
             return fecha_inicio
-        elif tipo == 'Primigenio' and input_field == 'Fecha Fin':
-            print("Capturaremos la fecha de terminación del contrato")
+        elif input_field == 'Fecha Fin':
+            print("\nCapturaremos la fecha de terminación del contrato")
             fecha_final = input_captura_fechas()
             return fecha_final
-        elif tipo == 'Modificatorio' and input_field == 'Fecha Inicio':
-            print("Árbol de decisión para {tipo} y {input_field} en desarrollo")
-            break
-        elif tipo == 'Modificatorio' and input_field == 'Fecha Fin':
-            print("Árbol de decisión para {tipo} y {input_field} en desarrollo")
-            break
         else:
-            print(f"\n\tCombinación de campo {input_field} y tipo {tipo} no considerado en el arbol de decisiones de Contratos, saliendo del código sin return variable\n")
+            print(f"\n\tCombinación de campo {input_field} no considerado en el arbol de decisiones de Contratos, saliendo del código sin return variable\n")
             break
 
 def STEP_B_estatus():
@@ -242,7 +294,7 @@ def STEP_B_estatus():
             if input_user == 1:
                 return "Formalizado"
             elif input_user == 2:
-                return "Copia con firmas incompletas"
+                return "NO formalizado"
             else:
                 print("Opción no válida, intenta de nuevo.")
         except ValueError:
@@ -381,3 +433,34 @@ def STEP_B_populate_from_df(df_to_load, column):
 
         else:
             print("⚠️ Opción no válida. Intenta de nuevo.")
+
+
+
+def step_B_santize_filename(instrumento_a_capturar: str) -> str:
+    """
+    Sustituye en 'instrumento_a_capturar' cualquier carácter no permitido 
+    en Windows o macOS por '-' y recorta la longitud a (255 − 6) = 249 caracteres.
+    Además, elimina al final cualquier punto o espacio, ya que Windows no los admite.
+    """
+    # 1. Reglas de caracteres inválidos (Windows: <>:"/\\|?* y macOS: "/")
+    #    Vamos a reemplazar cualquier cosa que NO sea:
+    #    - letra (A-Z, a-z)
+    #    - dígito (0-9)
+    #    - espacio, guion bajo (_), guion medio (-) o punto (.)
+    #
+    #    Todo lo demás lo convertimos en '-'.
+    invalid_pattern = r'[^A-Za-z0-9 _\.-]'
+    nombre = re.sub(invalid_pattern, '-', instrumento_a_capturar)
+
+    # 2. Recortar longitud a 249 caracteres (255 máximo de nombre de archivo NTFS menos 6)
+    MAX_WINDOWS_FILENAME_LEN = 255
+    SAFETY_MARGIN = 20
+    límite = MAX_WINDOWS_FILENAME_LEN - SAFETY_MARGIN 
+    if len(nombre) > límite:
+        nombre = nombre[:límite]
+
+    # 3. Windows no permite que el nombre termine en espacio o punto.
+    #    Lo recortamos si al final hay espacios o puntos repetidos.
+    nombre = nombre.rstrip(' .')
+
+    return nombre

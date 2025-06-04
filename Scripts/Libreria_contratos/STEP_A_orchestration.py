@@ -1,14 +1,8 @@
-import os
-import sys
-import shutil
-from folders_files_open import load_dataframe
 from STEP_B_Dict import STEP_B_get_string_populated
 from STEP_C_PDFhandling import STEP_C_PDF_HANDLING
-import ast
-
 
 def STEP_A_orchestration(df_desagregada_procedimiento, selected_procedimiento, carpeta_contratos):
-    institucion_column = 'Institución'
+    # Bucle para definir el tipo de instrumento (Primigenio o Modificatorio)
     print("\tPaso A: Definir si vamos a capturar un primigenio o modificatorio")
     while True:
         tipo = input("Define el tipo P) Primigenio o M) Modificatorio: ")
@@ -23,29 +17,30 @@ def STEP_A_orchestration(df_desagregada_procedimiento, selected_procedimiento, c
             break
         else:
             print("Entrada no válida, por favor elija P o M.")
-    print(tipo)
-    print("\tIniciando el orquestador para poblar el diccionario")
-    print("\n\tPASO B: GENERAR DE DICCIONARIO PARA NUEVO CONTRATO\n")
-    human_dict, valid_dict = STEP_B_get_string_populated(df_desagregada_procedimiento, tipo, institucion_column, selected_procedimiento, carpeta_contratos)
-    print('Diccionario Capturado\n', human_dict, "\nDiccionario Procesado\n", valid_dict)
-    print("\n\tPASO C: MANEJAR EL PDF\n") 
-    # Convert the SKU string to a list of dictionaries
-    sku_fields = 'Productos y precio'
-    try:
-        sku_list = ast.literal_eval(valid_dict[sku_fields])
-    except (SyntaxError, ValueError) as e:
-        print(f"❌ Error al convertir el campo {sku_fields} en una lista de diccionarios: {e}")
-        sku_list = []
+            continue
+    
+    print(f"Se generó la variable 'tipo' con el valor elegido: {tipo}")
+    
+    print(f"\n{'*' * 5}\nIniciando el orquestador para poblar el diccionario\n{'*' * 5}\n")
+    print("\nPASO B: GENERAR DE DICCIONARIO PARA NUEVO CONTRATO\n")
 
-    # Calculate the total
-    total = sum(item['Precio'] * item['Máximo'] for item in sku_list)
+    # Enviamos a generar un diccionario. 
 
-    # Print the total
-    print(f"💰 Total del contrato: {total}")
-    temp_directory = os.path.join(carpeta_contratos, 'Temp')
+    institucion_column = 'Institución'
+    print(f"Conforme a la funció load_pickles(desagregadas_folder), esperamos que la desagregada incluya la columna: {institucion_column}")
+    valid_dict = STEP_B_get_string_populated(df_desagregada_procedimiento, tipo, institucion_column, selected_procedimiento, carpeta_contratos)
+    print("\nDiccionario Procesado:\n", valid_dict)
+    
+    # Pegar el diccionario en el PDF y archivar el PDF.
+    while True: 
+        user_input = input("Tenemos diccionario creado ¿procedemos a pegarlo al PDF? si o no").strip().lower()
+        if user_input == "si":        
+            STEP_C_PDF_HANDLING(valid_dict, carpeta_contratos)
+            break
+        else:
+            print("❌ Consigue el PDF y vuelve para pegarle el diccionario.")
+            continue
 
-    contrato_pdf_temporal = [STEP_C_PDF_HANDLING(temp_directory, valid_dict, carpeta_contratos)]
-
-    #result_dict = STEP_C_read_labeled_pdf(pdf_path_list, valid_dict)
+    #result_dict = read_last_page_pdf(pdf_path_list, valid_dict)
     #print(f"Inserto agregado: {result_dict}")
     #df_feed = STEP_C_feed_DF(df_referencia_interna, result_dict)
