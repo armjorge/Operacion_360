@@ -91,6 +91,68 @@ def base_contratos_convenios_pickle(Folder_procedimiento, procedimiento, columna
 
     # 4. Si existe, cargarlo
     df_contratos_convenios = pd.read_pickle(filepath)
-    
+
     print(f"✔ Cargado pickle existente: '{procedimiento}.pickle' ({len(df_contratos_convenios)} filas).")
     return df_contratos_convenios
+
+
+def handle_pickle(pickle_path, Folder_procedimiento):
+    """
+    1. Carga el DataFrame desde pickle_path.
+    2. Muestra los primeros 20 contratos.
+    3. Pregunta al usuario si desea eliminar algún registro.
+    4. Si responde "si", muestra todos los índices y contratos, pide el índice a eliminar,
+       borra ese renglón del DataFrame y elimina el archivo PDF correspondiente en Folder_procedimiento.
+    5. Guarda el pickle actualizado.
+    """
+    # 1. Cargar el DataFrame
+    df = pd.read_pickle(pickle_path)
+
+    # 2. Mostrar los primeros 20 valores de 'Contrato'
+    len_print = 20
+    print(df['Contrato'].head(len_print))
+    print(f"Se imprimen los primeros {len_print} registros de {len(df['Contrato'])} contratos.")
+
+    # 3. Preguntar si desea eliminar
+    user_choice = input("¿Quieres eliminar algún registro? Ten en cuenta que también se eliminará el PDF (si/no): ").strip().lower()
+    if user_choice != 'si':
+        print("✅ No se realizará ninguna eliminación.")
+        return
+
+    # 4. Mostrar todos los índices con su 'Contrato'
+    print("\nListado completo de índices y contratos:")
+    for idx, row in df.iterrows():
+        print(f"  {idx} → {row['Contrato']}")
+
+    # 5. Pedir al usuario el índice a eliminar
+    sel = input("\nÍndice del contrato a eliminar: ").strip()
+    try:
+        idx_to_del = int(sel)
+    except ValueError:
+        print("❌ Índice inválido. Debes ingresar un número entero.")
+        return
+
+    if idx_to_del not in df.index:
+        print("❌ El índice ingresado no existe en el DataFrame.")
+        return
+
+    # 6. Obtener el nombre del archivo que se debe eliminar
+    row = df.loc[idx_to_del]
+    pdf_filename = row['Nombre del archivo']
+    pdf_path = os.path.join(Folder_procedimiento, pdf_filename)
+
+    # 7. Eliminar el archivo PDF si existe
+    if os.path.exists(pdf_path):
+        try:
+            os.remove(pdf_path)
+            print(f"🗑️ Se eliminó el archivo PDF: {pdf_filename}")
+        except Exception as e:
+            print(f"❌ Error al eliminar el archivo PDF: {e}")
+            return
+    else:
+        print(f"⚠️ No se encontró el archivo PDF en: {pdf_path}")
+
+    # 8. Eliminar la fila del DataFrame y guardar el pickle actualizado
+    df = df.drop(idx_to_del)
+    df.to_pickle(pickle_path)
+    print("✅ Registro eliminado del DataFrame y pickle actualizado.")
