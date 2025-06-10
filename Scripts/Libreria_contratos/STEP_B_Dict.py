@@ -14,7 +14,9 @@ def STEP_B_get_string_populated(df_desagregada_procedimiento,  tipo, institucion
     # institucion_column = 'Institución' 
     # folder_path = os.path.join(folder_root, "Implementación", "Contratos", f"{procedimiento}")
     # selected_procedimiento: string con el nombre de archivo o carpeta
-    
+
+    # I. Generación del pickle de la demanda
+
     print("\t🛠️ Iniciando la generación del diccionario para el contrato...\n")
     # (1) Construyo la ruta al pickle de contratos_convenios
     contratos_convenios = os.path.join(folder_path, f"{selected_procedimiento}.pickle")
@@ -33,35 +35,73 @@ def STEP_B_get_string_populated(df_desagregada_procedimiento,  tipo, institucion
     columna_df_contratos = "Contrato"
 
     # (3) Si df_pickle_contratos NO está vacío, muestro contratos existentes y pido input
-    if not df_contratos_convenios.empty:
-        print("Contratos existentes:", df_contratos_convenios[columna_df_contratos].unique())
-        user_input = input("¿Ya existe previamente capturado? (si/no): ").strip().lower()
-        if user_input == "si":
-            # El método STEP_B_populate_from_df debe devolver un string con el contrato elegido
-            print(f"Contrato capturado, por favor elige el contrato de la lista siguiente, columna  {columna_df_contratos} del dataframe df_contratos_convenios")
-            instrumento_a_capturar = STEP_B_populate_from_df(df_contratos_convenios, columna_df_contratos)
-        else:
-            # Si respondió "no" o cualquier otra cosa, dejo que escriba el nombre manualmente
-            print("\nContrato no capturado, por favor ingresa el nombre del contrato\n")
-            instrumento_a_capturar = input("Escribe el nombre del contrato: ").strip()
-    else:
-        # (4) Si no había pickle o está vacío, pido directo el nombre del contrato
-        instrumento_a_capturar = input("Escribe el nombre del contrato: ").strip()
-    # Si tipo == Modificatorio & df_contratos_convenios.empty: generar error, no puedes capturar un modificatorio para el que no has capturado su primigenio
-    # (5) Ahora creo/selecciono la institución usando df_clientes
-    institucion_elegida = STEP_B_populate_from_df(df_desagregada_procedimiento, institucion_column)
-    # Columnas df_pickle_contratos  = ['Institución', 'Procedimiento', 'Contrato', 'Fecha Inicio', 'Fecha Fin', 
-    # 'Productos y precio', 'Total', 'Nombre del archivo', 'Estatus', 'Convenio modificatorio', 'Objeto del convenio']
-    # Falta la lógica: si ya está capturado, pregunta si quieres actualizar la fecha, la idea general es que no sea necesario capturar de nuevo todo. 
+    
+    # II. LÓGICA PARA POBLAR CONTRATOS NUEVOS, PREVIAMENTE CAPTURADOS Y CONVENIOS NUEVOS Y PREVIAMENTE CAPTURADOS
+    # II.I PRIMIGENIO
     if tipo == 'Primigenio': 
+        if not df_contratos_convenios.empty:
+            print("Contratos existentes:", df_contratos_convenios[columna_df_contratos].unique())
+            existing_contract = input("¿Ya existe previamente capturado? (si/no): ").strip().lower()
+            if existing_contract == "si":
+                # El método STEP_B_populate_from_df debe devolver un string con el contrato elegido
+                print(f"Contrato capturado, por favor elige el contrato de la lista siguiente, columna  {columna_df_contratos} del dataframe df_contratos_convenios")
+                instrumento_a_capturar = STEP_B_populate_from_df(df_contratos_convenios, columna_df_contratos)
+                df_captura_filtrado = df_contratos_convenios.query("Contrato == @instrumento_a_capturar and Tipo == @tipo")
+                print(df_captura_filtrado.head(5))
+            elif existing_contract == "no":
+                # Si respondió "no", dejo que escriba el nombre manualmente
+                print("\nContrato no capturado\n")
+                instrumento_a_capturar = input("Escribe el nombre del contrato: ").strip()
+            else: 
+                print("Ingresaste una opción no válida")
+        else:
+            # (4) Si no había pickle o está vacío, pido directo el nombre del contrato
+            print("\nLa base de contratos está vacío, por favor empieza la captura\n")
+            instrumento_a_capturar = input("Escribe el nombre del contrato: ").strip() 
+    # II.II MODIFICATORIO   
+    # Si tipo == Modificatorio & df_contratos_convenios.empty: generar error, no puedes capturar un modificatorio para el que no has capturado su primigenio
+    elif tipo == 'Modificatorio': 
+        if not df_contratos_convenios.empty:
+            print("Elige el contrato primigenio al que corresponde el convenio modificatorio a capturar")
+            primigenio = STEP_B_populate_from_df(df_contratos_convenios, columna_df_contratos)
+            df_captura_filtrado = df_contratos_convenios.query("Contrato == @primigenio and Tipo == 'Primigenio'")
+            print(df_captura_filtrado.head(5))
+        else:
+            # (4) Si no había pickle o está vacío, pido directo el nombre del contrato
+            print("La base de contratos está vacía, necesitas capturar los contratos primigenios antes de proceder con los modificatorios")       
+    else: 
+        print(f"Esperábamos una tipo 'Modificatorio' o 'Primigenio y pasaste {tipo}")
+    
+    # (5) Ahora creo/selecciono la institución usando df_clientes
+    #institucion_elegida = STEP_B_populate_from_df(df_desagregada_procedimiento, institucion_column)
+    institucion_elegida = (
+    STEP_B_populate_from_df(df_desagregada_procedimiento, institucion_column)
+    if ('df_captura_filtrado' not in locals() or df_captura_filtrado.empty)
+    else df_captura_filtrado['Institución'].iat[0])
+
+    # III Generación de diccionarios
+    # III.I Caso contrato primigenio
+    if tipo == 'Primigenio': 
+        fecha_inicio = (STEP_B_fechas('Fecha Inicio')
+        if ('df_captura_filtrado' not in locals() or df_captura_filtrado.empty)
+        else df_captura_filtrado['Fecha Inicio'].iat[0])
+
+        fecha_fin = (STEP_B_fechas('Fecha Fin')
+        if ('df_captura_filtrado' not in locals() or df_captura_filtrado.empty)
+        else df_captura_filtrado['Fecha Fin'].iat[0])
+
         orchestration_dict_part_1 = f"""
             'Institución': "{institucion_elegida}",
             'Procedimiento': "{df_desagregada_procedimiento['Procedimiento'].unique()[0]}",
             'Contrato': "{instrumento_a_capturar}",
-            'Fecha Inicio': "{STEP_B_fechas('Fecha Inicio')}",
-            'Fecha Fin': "{STEP_B_fechas('Fecha Fin')}"
+            'Fecha Inicio': "{fecha_inicio}",
+            'Fecha Fin': "{fecha_fin}"
             """
-        skus_str= generar_skus(df_desagregada_procedimiento, institucion_elegida, folder_path)
+        skus_str= (
+        generar_skus(df_desagregada_procedimiento, institucion_elegida, folder_path)
+        if ('df_captura_filtrado' not in locals() or df_captura_filtrado.empty)
+        else df_captura_filtrado['Productos y precio'].iat[0])
+
         skus = ast.literal_eval(skus_str)
         #print('\n Diccionario pasado: ', skus, '\n')
         total = sum(item['Precio'] * item['Piezas'] for item in skus)
@@ -74,32 +114,127 @@ def STEP_B_get_string_populated(df_desagregada_procedimiento,  tipo, institucion
             'Nombre del archivo': "{nombre_del_archivo}",
             'Estatus': "{estatus}",
             'Convenio modificatorio': "", 
-            'Objeto del convenio': ""
+            'Objeto del convenio': "",
+            'Tipo': "{tipo}"
         """
         orchestration_dict = f"""{{{orchestration_dict_part_1}, {orchestration_dict_part_2}}}"""
 
+    # III.II Caso modificatorio
 
     elif tipo == 'Modificatorio':
+        start_date_info = input("¿1) Recapturamos la fecha de inicio, 2) la dejamos en blanco o 3) dejamos la fecha del contrato primigenio? ")
+        if start_date_info == '1':
+            fecha_inicio = STEP_B_fechas('Fecha Inicio')
+        elif start_date_info == '2':
+            fecha_inicio = float('nan')
+        elif start_date_info == '3':
+            # assumes df_captura_filtrado exists and has at least one row
+            fecha_inicio = df_captura_filtrado['Fecha Inicio'].iat[0]
+        else:
+            raise ValueError(f"Opción inválida: {start_date_info}")
+        
+        end_date_info = input("¿1) Recapturamos la fecha de finalización, 2) la dejamos en blanco o 3) dejamos la fecha del contrato primigenio? ")
+        if end_date_info == '1':
+            fecha_fin = STEP_B_fechas('Fecha Fin')
+        elif end_date_info == '2':
+            fecha_fin = float('nan')
+        elif end_date_info == '3':
+            # assumes df_captura_filtrado exists and has at least one row
+            fecha_fin = df_captura_filtrado['Fecha Fin'].iat[0]
+        else:
+            raise ValueError(f"Opción inválida: {end_date_info}")
+        
         orchestration_dict_part_1 = f"""
             'Institución': "{institucion_elegida}",
-            'Procedimiento': "{df_desagregada_procedimiento['Procedimiento'].unique()}",
-            'Contrato': "{instrumento_a_capturar}",
-            'Fecha Inicio': "{STEP_B_fechas('Fecha Inicio')}",
-            'Fecha Fin': "{STEP_B_fechas('Fecha Fin')}"
+            'Procedimiento': "{df_desagregada_procedimiento['Procedimiento'].unique()[0]}",
+            'Contrato': "{primigenio}",
+            'Fecha Inicio': "{fecha_inicio}",
+            'Fecha Fin': "{fecha_fin}"
             """
-        skus_str= generar_skus(df_desagregada_procedimiento, institucion_elegida, folder_path)
-        skus = ast.literal_eval(skus_str)
-        print('\n Diccionario pasado: ', skus, '\n')
-        total = sum(item['Precio'] * item['Piezas'] for item in skus)
-        convenio_modificatorio_subsecuente = 1 # Lo puedes definir automáticamente filtrando el df_contratos_convenios para == instrumento_a_capturar 
-        nombre_del_archivo = step_B_santize_filename(instrumento_a_capturar) + ' CM' + convenio_modificatorio_subsecuente
+        
+        
+        sku_question = input("¿1) Recapturamos los productos y precio, 2) los dejamos en blanco o 3) dejamos los productos y precios del contrato primigenio? ")
+
+        if sku_question == '1':
+            skus_str = generar_skus(df_desagregada_procedimiento, institucion_elegida, folder_path)
+            skus = ast.literal_eval(skus_str)
+            total = sum(item['Precio'] * item['Piezas'] for item in skus)
+
+        elif sku_question == '2':
+            skus = float('nan')
+            total = 0
+
+        elif sku_question == '3':
+            # toma el primer registro del contrato primigenio
+            skus_str = df_captura_filtrado['Productos y precio'].iat[0]
+            skus = ast.literal_eval(skus_str)
+            total = sum(item['Precio'] * item['Piezas'] for item in skus)
+
+        else:
+            raise ValueError(f"Opción inválida: {sku_question}")
+
+
+        # Contar los convenios “Modificatorio” para el contrato primigenio
+        convenios_para_contrato = df_contratos_convenios.query(
+            "Contrato == @primigenio and Tipo == 'Modificatorio'"
+        ).shape[0]
+
+        # Sugerencia de número de convenio a capturar
+        sugerido = convenios_para_contrato + 1
+        print(
+            f"Se detectaron {convenios_para_contrato} convenios modificatorios; "
+            f"se sugiere que el que estés capturando sea el {sugerido}."
+        )
+        # Leer la elección del usuario y validar que sea un entero
+        entrada = input("Número de convenio que estamos capturando: ")
+        try:
+            convenio_user = int(entrada)
+        except ValueError:
+            raise ValueError(f"Opción inválida, se esperaba un número: {entrada}")
+
+        # Formar el código del convenio capturado
+        convenio_capturado = f"CM{convenio_user}"
+
+        # Mostrar las opciones de objeto del convenio
+        print(
+            "Selecciona el objeto del convenio:\n"
+            "1) Inclusión de marca\n"
+            "2) Ampliación de fecha\n"
+            "3) Ampliación de máximos\n"
+            "4) Ampliación de fecha y máximos"
+        )
+
+        # Leer y validar la entrada del usuario
+        entrada = input("Opción (1–4): ")
+        try:
+            opcion = int(entrada)
+        except ValueError:
+            raise ValueError(f"Opción inválida, se esperaba un número entre 1 y 4: {entrada}")
+
+        # Mapear cada número a su descripción
+        mapping = {
+            1: "Inclusión de marca",
+            2: "Ampliación de fecha",
+            3: "Ampliación de máximos",
+            4: "Ampliación de fecha y máximos"
+        }
+
+        # Obtener la descripción o lanzar error si no existe
+        if opcion in mapping:
+            objeto_del_convenio = mapping[opcion]
+        else:
+            raise ValueError(f"Opción fuera de rango: {opcion}")
+        estatus = STEP_B_estatus()
+        nombre_final = f"{primigenio}_{convenio_capturado}_{estatus}.pdf"
+        nombre_del_archivo = step_B_santize_filename(nombre_final)
         orchestration_dict_part_2 = f"""
             'Productos y precio': "{skus}",
             'Total': "{total}", 
-            'Nombre del archivo': "{instrumento_a_capturar}",
-            'Estatus': "{STEP_B_estatus()}",
-            'Convenio modificatorio': "", 
-            'Objeto del convenio': ""
+            'Nombre del archivo': "{nombre_del_archivo}",
+            'Estatus': "{estatus}",
+            'Convenio modificatorio': "{convenio_capturado}", 
+            'Objeto del convenio': "{objeto_del_convenio}",
+            'Tipo': "{tipo}"
         """
         orchestration_dict = f"""{{{orchestration_dict_part_1}, {orchestration_dict_part_2}}}"""
 
