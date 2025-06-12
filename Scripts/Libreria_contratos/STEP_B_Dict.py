@@ -65,7 +65,7 @@ def STEP_B_get_string_populated(df_desagregada_procedimiento,  tipo, institucion
             print("Elige el contrato primigenio al que corresponde el convenio modificatorio a capturar")
             primigenio = STEP_B_populate_from_df(df_contratos_convenios, columna_df_contratos)
             df_captura_filtrado = df_contratos_convenios.query("Contrato == @primigenio and Tipo == 'Primigenio'")
-            print(df_captura_filtrado.head(5))
+            #print(df_captura_filtrado.head(5))
         else:
             # (4) Si no había pickle o está vacío, pido directo el nombre del contrato
             print("La base de contratos está vacía, necesitas capturar los contratos primigenios antes de proceder con los modificatorios")       
@@ -81,11 +81,17 @@ def STEP_B_get_string_populated(df_desagregada_procedimiento,  tipo, institucion
 
     # III Generación de diccionarios
     # III.I Caso contrato primigenio
-    if tipo == 'Primigenio': 
+    if tipo == 'Primigenio':
+        start_date_message = 'Fecha de Inicio'
+        start_date_message_highlights = f"{'*' * len(start_date_message)}"
+        print(F"{start_date_message_highlights}\n{start_date_message}\n{start_date_message_highlights}")
         fecha_inicio = (STEP_B_fechas('Fecha Inicio')
         if ('df_captura_filtrado' not in locals() or df_captura_filtrado.empty)
         else df_captura_filtrado['Fecha Inicio'].iat[0])
-
+        
+        end_date_message = 'Fecha de Finalización'
+        end_date_message_highlights = f"{'*' * len(end_date_message)}"
+        print(F"{end_date_message_highlights}\n{end_date_message}\n{end_date_message_highlights}")
         fecha_fin = (STEP_B_fechas('Fecha Fin')
         if ('df_captura_filtrado' not in locals() or df_captura_filtrado.empty)
         else df_captura_filtrado['Fecha Fin'].iat[0])
@@ -97,11 +103,15 @@ def STEP_B_get_string_populated(df_desagregada_procedimiento,  tipo, institucion
             'Fecha Inicio': "{fecha_inicio}",
             'Fecha Fin': "{fecha_fin}"
             """
+        
         skus_str= (
         generar_skus(df_desagregada_procedimiento, institucion_elegida, folder_path)
         if ('df_captura_filtrado' not in locals() or df_captura_filtrado.empty)
         else df_captura_filtrado['Productos y precio'].iat[0])
-
+        
+        sku_message = 'Productos y precio'
+        sku_message_highlights = f"{'*' * len(sku_message)}"        
+        print(f"{sku_message_highlights}\n{sku_message}\n{sku_message_highlights}")
         skus = ast.literal_eval(skus_str)
         #print('\n Diccionario pasado: ', skus, '\n')
         total = sum(item['Precio'] * item['Piezas'] for item in skus)
@@ -122,22 +132,25 @@ def STEP_B_get_string_populated(df_desagregada_procedimiento,  tipo, institucion
     # III.II Caso modificatorio
 
     elif tipo == 'Modificatorio':
-        start_date_info = input("¿1) Recapturamos la fecha de inicio, 2) la dejamos en blanco o 3) dejamos la fecha del contrato primigenio? ")
+        start_date_message = 'Fecha de Inicio'
+        start_date_message_highlights = f"{'*' * len(start_date_message)}"
+        start_date_info = input(f"{start_date_message_highlights}\n{start_date_message}\n{start_date_message_highlights}\n1) Recapturamos la fecha de inicio, \n\t2) la dejamos en blanco o \n\t3) dejamos la fecha del contrato primigenio? ")
         if start_date_info == '1':
             fecha_inicio = STEP_B_fechas('Fecha Inicio')
         elif start_date_info == '2':
-            fecha_inicio = float('nan')
+            fecha_inicio = ''
         elif start_date_info == '3':
             # assumes df_captura_filtrado exists and has at least one row
             fecha_inicio = df_captura_filtrado['Fecha Inicio'].iat[0]
         else:
             raise ValueError(f"Opción inválida: {start_date_info}")
-        
-        end_date_info = input("¿1) Recapturamos la fecha de finalización, 2) la dejamos en blanco o 3) dejamos la fecha del contrato primigenio? ")
+        end_date_message = 'Fecha de Finalización'
+        end_date_message_highlights = f"{'*' * len(end_date_message)}"
+        end_date_info = input(f"{end_date_message_highlights}\n{end_date_message}\n{end_date_message_highlights}\n\t ¿1) Recapturamos la fecha de finalización, \n\t2) la dejamos en blanco o \n\t3) dejamos la fecha del contrato primigenio? ")
         if end_date_info == '1':
             fecha_fin = STEP_B_fechas('Fecha Fin')
         elif end_date_info == '2':
-            fecha_fin = float('nan')
+            fecha_fin = ''
         elif end_date_info == '3':
             # assumes df_captura_filtrado exists and has at least one row
             fecha_fin = df_captura_filtrado['Fecha Fin'].iat[0]
@@ -152,8 +165,10 @@ def STEP_B_get_string_populated(df_desagregada_procedimiento,  tipo, institucion
             'Fecha Fin': "{fecha_fin}"
             """
         
-        
-        sku_question = input("¿1) Recapturamos los productos y precio, 2) los dejamos en blanco o 3) dejamos los productos y precios del contrato primigenio? ")
+        sku_message = 'Productos y precio'
+        sku_message_highlights = f"{'*' * len(sku_message)}"        
+        print(f"{sku_message_highlights}\n{sku_message}\n{sku_message_highlights}")
+        sku_question = input("\n\t¿1) Recapturamos los productos y precio, \n\t2) los dejamos en blanco o \n\t3) dejamos los productos y precios del contrato primigenio? ")
 
         if sku_question == '1':
             skus_str = generar_skus(df_desagregada_procedimiento, institucion_elegida, folder_path)
@@ -161,9 +176,9 @@ def STEP_B_get_string_populated(df_desagregada_procedimiento,  tipo, institucion
             total = sum(item['Precio'] * item['Piezas'] for item in skus)
 
         elif sku_question == '2':
-            skus = float('nan')
-            total = 0
-
+            skus = ''
+            total = ''
+            
         elif sku_question == '3':
             # toma el primer registro del contrato primigenio
             skus_str = df_captura_filtrado['Productos y precio'].iat[0]
@@ -183,10 +198,10 @@ def STEP_B_get_string_populated(df_desagregada_procedimiento,  tipo, institucion
         sugerido = convenios_para_contrato + 1
         print(
             f"Se detectaron {convenios_para_contrato} convenios modificatorios; "
-            f"se sugiere que el que estés capturando sea el {sugerido}."
+            f"se sugiere que el que estés capturando sea el \n{'*'* 10}\nCM{sugerido} (sugerido)\n{'*' * 10}\n."
         )
         # Leer la elección del usuario y validar que sea un entero
-        entrada = input("Número de convenio que estamos capturando: ")
+        entrada = input("\nNúmero de convenio que estamos capturando: ")
         try:
             convenio_user = int(entrada)
         except ValueError:
@@ -198,10 +213,10 @@ def STEP_B_get_string_populated(df_desagregada_procedimiento,  tipo, institucion
         # Mostrar las opciones de objeto del convenio
         print(
             "Selecciona el objeto del convenio:\n"
-            "1) Inclusión de marca\n"
-            "2) Ampliación de fecha\n"
-            "3) Ampliación de máximos\n"
-            "4) Ampliación de fecha y máximos"
+            "\t1) Inclusión de marca\n"
+            "\t2) Ampliación de fecha\n"
+            "\t3) Ampliación de máximos\n"
+            "\t4) Ampliación de fecha y máximos"
         )
 
         # Leer y validar la entrada del usuario
@@ -245,30 +260,8 @@ def STEP_B_get_string_populated(df_desagregada_procedimiento,  tipo, institucion
 
     # Guardar el diccionario generado al dataframe si no existe y reemplazar el archivo. 
 
-    mask = pd.Series(True, index=df_contratos_convenios.index)
-    for col, val in computer_dict.items():
-        # Si alguna columna no existiera, esto levantaría KeyError.
-        # Pero asumimos que todas las llaves de computer_dict están en df_contratos_convenios.columns.
-        mask &= (df_contratos_convenios[col] == val)
 
-    already_exists = mask.any()
-
-    if not already_exists:
-        # (4) Crear un DataFrame de una sola fila a partir de computer_dict
-        new_row = pd.DataFrame([computer_dict])
-
-        # (5) Concatenar esa fila con el DataFrame original
-        df_contratos_convenios = pd.concat(
-            [df_contratos_convenios, new_row],
-            ignore_index=True
-        )
-
-        # (6) Sobrescribir el pickle
-        df_contratos_convenios.to_pickle(contratos_convenios)
-        print("Se agregó la fila y se guardó en el pickle.")
-    else:
-        print("Esa fila ya existe en df_contratos_convenios; no se hace nada.")
-    return computer_dict
+    return computer_dict, df_contratos_convenios
 
 
 def generar_skus(df_clientes, institucion_elegida, folder_path):
