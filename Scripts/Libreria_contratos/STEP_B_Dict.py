@@ -197,18 +197,37 @@ def STEP_B_get_string_populated(df_desagregada_procedimiento,  tipo, institucion
         # Sugerencia de número de convenio a capturar
         sugerido = convenios_para_contrato + 1
         print(
-            f"Se detectaron {convenios_para_contrato} convenios modificatorios; "
+            f"\nSe detectaron {convenios_para_contrato} convenios modificatorios; "
             f"se sugiere que el que estés capturando sea el \n{'*'* 10}\nCM{sugerido} (sugerido)\n{'*' * 10}\n."
         )
-        # Leer la elección del usuario y validar que sea un entero
-        entrada = input("\nNúmero de convenio que estamos capturando: ")
-        try:
-            convenio_user = int(entrada)
-        except ValueError:
-            raise ValueError(f"Opción inválida, se esperaba un número: {entrada}")
+        convenio_name_or_number = input(
+            "\nSelecciona el tipo de convenio:\n"
+            "1. El convenio es de número consecutivo\n"
+            "2. El convenio es de clave\n"
+            "Opción (1 o 2): "
+        )
+        if convenio_name_or_number == "1":
+            # Opción: número consecutivo
+            convenio_user = input(
+                "Ingresa el número de Convenio Modificatorio "
+                "(se agregará el prefijo CM automáticamente): "
+            )
+            if not convenio_user.isdigit():
+                raise ValueError(f"Opción inválida, se esperaba un número: {convenio_user}")
+            convenio_capturado = f"CM{convenio_user}"
+
+        elif convenio_name_or_number == "2":
+            # Opción: clave ya formada
+            convenio_capturado = input("Captura el código del convenio: ")
+
+        else:
+            # Opción inválida
+            raise ValueError(f"Opción inválida, se esperaba '1' o '2': {convenio_name_or_number}")
+
+        print(f"Convenio capturado: {convenio_capturado}")
 
         # Formar el código del convenio capturado
-        convenio_capturado = f"CM{convenio_user}"
+        
 
         # Mostrar las opciones de objeto del convenio
         print(
