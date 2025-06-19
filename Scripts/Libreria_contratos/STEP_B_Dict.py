@@ -49,9 +49,12 @@ def STEP_B_get_string_populated(df_desagregada_procedimiento,  tipo, institucion
                 df_captura_filtrado = df_contratos_convenios.query("Contrato == @instrumento_a_capturar and Tipo == @tipo")
                 print(df_captura_filtrado.head(5))
             elif existing_contract == "no":
-                # Si respondió "no", dejo que escriba el nombre manualmente
-                print("\nContrato no capturado\n")
-                instrumento_a_capturar = input("Escribe el nombre del contrato: ").strip()
+                while True:
+                    instrumento_a_capturar = input("Escribe el nombre del contrato: ").strip()
+                    if instrumento_a_capturar:
+                        break
+                    else:
+                        print("⚠️ El nombre no puede quedar vacío. Por favor, ingrésalo de nuevo.")
             else: 
                 print("Ingresaste una opción no válida")
         else:
@@ -117,7 +120,7 @@ def STEP_B_get_string_populated(df_desagregada_procedimiento,  tipo, institucion
         total = sum(item['Precio'] * item['Piezas'] for item in skus)
         estatus = STEP_B_estatus()
         nombre_final = f"{instrumento_a_capturar}_{tipo}_{estatus}.pdf"
-        nombre_del_archivo = step_B_santize_filename(nombre_final)
+        nombre_del_archivo = step_B_santize_filename(nombre_final, folder_path)
         orchestration_dict_part_2 = f"""
             'Productos y precio': "{skus}",
             'Total': "{total}", 
@@ -260,7 +263,7 @@ def STEP_B_get_string_populated(df_desagregada_procedimiento,  tipo, institucion
             raise ValueError(f"Opción fuera de rango: {opcion}")
         estatus = STEP_B_estatus()
         nombre_final = f"{primigenio}_{convenio_capturado}_{estatus}.pdf"
-        nombre_del_archivo = step_B_santize_filename(nombre_final)
+        nombre_del_archivo = step_B_santize_filename(nombre_final, folder_path)
         orchestration_dict_part_2 = f"""
             'Productos y precio': "{skus}",
             'Total': "{total}", 
@@ -583,7 +586,7 @@ def STEP_B_populate_from_df(df_to_load, column):
 
 
 
-def step_B_santize_filename(instrumento_a_capturar: str) -> str:
+def step_B_santize_filename(instrumento_a_capturar: str, folder_path: str) -> str:
     """
     Sustituye en 'instrumento_a_capturar' cualquier carácter no permitido 
     en Windows o macOS por '-' y recorta la longitud a (255 − 6) = 249 caracteres.
@@ -609,5 +612,30 @@ def step_B_santize_filename(instrumento_a_capturar: str) -> str:
     # 3. Windows no permite que el nombre termine en espacio o punto.
     #    Lo recortamos si al final hay espacios o puntos repetidos.
     nombre = nombre.rstrip(' .')
+    # 4. Evitar duplicados en folder_path (solo .pdf)
+    print("Revisando nombres existentes")
+    try:
+        existentes = {
+            f for f in os.listdir(folder_path)
+            if f.lower().endswith(".pdf")
+        }
+    except FileNotFoundError:
+        existentes = set()
+
+    original_pdf = f"{nombre}.pdf"
+    print(f"\nEstos son los archivos existentes: \n{existentes}")
+    if original_pdf in existentes:
+        print("Agregando dígito diferenciador porque existe nombre duplicado")
+        base = nombre
+        contador = 1
+        # Buscar primer candidato que no exista
+        while True:
+            candidato = f"{base}_{contador}"
+            candidato_pdf = f"{candidato}.pdf"
+            if candidato_pdf not in existentes:
+                print(f"{candidato_pdf} no está previamente guardado, se queda este nombre.")
+                nombre = candidato
+                break
+            contador += 1
 
     return nombre

@@ -6,6 +6,7 @@ from openpyxl import load_workbook
 import warnings
 warnings.filterwarnings("ignore", message="Workbook contains no default style, apply openpyxl's default")
 """def merge_dataframes(dataframes):"""
+from datetime import datetime
 
 def xlsx_loading(download_directory, headers, output_name):
     """
@@ -112,3 +113,62 @@ def CAMUNDA_merging(download_directory, headers, columna_duplicados, output_name
     final_path = os.path.join(download_directory, output_name)
     final_dataframe.to_excel(final_path, index=False)
     print(f"**********\nArchivo final guardado en {os.path.basename(download_directory)} / {output_name}\n *************")
+
+
+def merging_and_updating_camunda2025(download_directory):
+    # Step 1: Load all CSV files with a date extracted from filename or filesystem metadata
+    all_files = [
+        os.path.join(download_directory, f)
+        for f in os.listdir(download_directory)
+        if f.endswith('.csv')
+    ]
+
+    # Extract file date based on last modified time
+    dated_dfs = []
+    for file in all_files:
+        file_date = datetime.fromtimestamp(os.path.getmtime(file))
+        df = pd.read_csv(file)
+        df['__file_date'] = file_date
+        dated_dfs.append(df)
+
+    # Step 2: Combine all into one dataframe
+    combined_df = pd.concat(dated_dfs, ignore_index=True)
+
+    # Step 3: Sort by 'numero_orden_suministro' and then by '__file_date' to get latest info
+    combined_df.sort_values(by=['numero_orden_suministro', '__file_date'], ascending=[True, False], inplace=True)
+
+    # Step 4: Keep only the latest version for each 'numero_orden_suministro'
+    latest_rows = combined_df.drop_duplicates(subset='numero_orden_suministro', keep='first')
+
+    # Step 5: Load historical merged file if it exists
+    merged_file_path = os.path.join(download_directory, '..', 'Camunda v2025.xlsx')
+    if os.path.exists(merged_file_path):
+        df_merged_updated = pd.read_excel(merged_file_path)
+    else:
+        df_merged_updated = pd.DataFrame(columns=latest_rows.columns.drop('__file_date'))
+
+    # Step 6: Merge with latest info, updating `descripcion_estatus_orden_suministro` if changed
+    df_merged_updated = df_merged_updated.set_index('numero_orden_suministro')
+    latest_rows = latest_rows.set_index('numero_orden_suministro')
+
+    for idx, new_row in latest_rows.iterrows():
+        if idx not in df_merged_updated.index:
+            # New row
+            df_merged_updated.loc[idx] = new_row.drop('__file_date')
+        else:
+            # Existing row, check if estatus changed
+            current_status = df_merged_updated.at[idx, 'descripcion_estatus_orden_suministro']
+            new_status = new_row['descripcion_estatus_orden_suministro']
+            if current_status != new_status:
+                df_merged_updated.at[idx, 'descripcion_estatus_orden_suministro'] = new_status
+
+    df_merged_updated.reset_index(inplace=True)
+    # Save the merged file back for future usage
+    df_merged_updated.to_excel(merged_file_path, index=False)
+
+    return df_merged_updated
+
+if __name__ == "__main__":
+    # Esto solo se ejecuta cuando corres el script, no cuando lo importas desde otro módulo.
+    download_directory = r"C:\Users\arman\Dropbox\3. Armando Cuaxospa\Adjudicaciones\Licitaciones 2025\E115 360\Implementación\CAMUNDA\Descargas"
+    merging_and_updating_camunda2025(download_directory)
