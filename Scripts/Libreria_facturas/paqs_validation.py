@@ -6,9 +6,9 @@ import numpy as np
 from openpyxl import load_workbook
 
 
-def validacion_de_paqs(dict_path_sheet, dic_columnas, paq_folder, altas_path, info_types):
+def validacion_de_paqs(dict_path_sheet, dic_columnas, paq_folder, altas_path, altas_sheet, info_types):
     # (I) Carga
-    df_entregas_o_altas = pd.read_excel(altas_path, sheet_name='df_altas')
+    df_entregas_o_altas = pd.read_excel(altas_path, sheet_name=altas_sheet)
     columnas_objetivo = ["Folio", "Referencia", "Alta", "Total", "UUID"]
     df_facturas = pd.DataFrame(columns=columnas_objetivo)
 
@@ -65,12 +65,13 @@ def validacion_de_paqs(dict_path_sheet, dic_columnas, paq_folder, altas_path, in
         return_column='noAlta',
         default_value='alta no localizada'
     )
+    
     print(df_entregas_o_altas.sample(20))
 
     df_facturas.to_excel(excel_facturas, index=False)
     # Cargar el archivo conservando las hojas
     with pd.ExcelWriter(altas_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
-        df_entregas_o_altas.to_excel(writer, sheet_name='df_altas', index=False)
+        df_entregas_o_altas.to_excel(writer, sheet_name=altas_sheet, index=False)
 
     print("\nExcel generado de facturas generado exitosamente\n")
 
@@ -78,15 +79,13 @@ def validacion_de_paqs(dict_path_sheet, dic_columnas, paq_folder, altas_path, in
 
 def multi_column_lookup(df_to_fill, df_to_consult, match_columns: dict, return_column, default_value='sin match'):
     """
-    Realiza búsqueda con múltiples columnas y retorna valor o advertencias.
-
+    Realiza búsqueda con múltiples columnas y retorna valor o advertencias
     Args:
         df_to_fill (pd.DataFrame): DataFrame que queremos llenar.
         df_to_consult (pd.DataFrame): DataFrame que consultamos.
         match_columns (dict): {col_df_to_fill: col_df_to_consult} pares de columnas para hacer match.
         return_column (str): Columna en df_to_consult con el valor a traer.
         default_value (any): Valor si no hay coincidencia.
-
     Returns:
         pd.Series: Valores para poblar la columna deseada.
     """
@@ -95,7 +94,9 @@ def multi_column_lookup(df_to_fill, df_to_consult, match_columns: dict, return_c
         raise TypeError(f"El argumento 'df_to_consult' debe ser un DataFrame, se recibió: {type(df_to_consult)}")
 
     result_list = []
-
+    message_falta_liga = 'Renglones del dataframe a llenar sin filtro en el dataframe a consultar'
+    ligas_duplicadas = 0
+    ligas_vacías = 0
     for _, row in df_to_fill.iterrows():
         # Construir filtro booleano dinámico
         mask = pd.Series([True] * len(df_to_consult))
@@ -107,11 +108,23 @@ def multi_column_lookup(df_to_fill, df_to_consult, match_columns: dict, return_c
 
         if filtered.empty:
             result_list.append(default_value)
+            print("\tEncontramos renglones sin poder ligar")
+            ligas_vacías += 1
         elif len(filtered) > 1:
             resultados_duplicados = ", ".join(filtered[return_column].astype(str).tolist())
             result_list.append(f'Peligro: 2 resultados {resultados_duplicados}')
+            ligas_duplicadas += 1
         else:
             result_list.append(filtered.iloc[0][return_column])
+    success_message = "✅ Se ligaron el 100% de los renglones y no hubo duplicados."
+    if ligas_duplicadas == 0 and ligas_vacías == 0:
+        print(f"{'*'*len(success_message)}\n{success_message}\n{'*'*len(success_message)}")
+    elif ligas_duplicadas == 0 and ligas_vacías > 0:
+        print("⚠️ Hay renglones que no se pudieron llenar con el dataframe consultado.")
+    elif ligas_duplicadas > 0 and ligas_vacías == 0:
+        print("⚠️ Hay renglones para los que se encontraron más de un resultado en el dataframe de consulta.")
+    else:
+        print("⚠️ Hay renglones vacíos y renglones con duplicados.")
 
     return pd.Series(result_list, index=df_to_fill.index)
 
@@ -141,6 +154,14 @@ def correccion_types(df_entregas_o_altas, df_facturas, info_types):
         mask = ((df_facturas['Referencia'].isna() | (df_facturas['Referencia'] == 0)) & df_facturas['Alta'].isna())
         print(f"Totales de las filas con Referencia y Alta ausentes = {mask.index.size}")
         df_facturas = df_facturas.loc[~mask].reset_index(drop=True)
+        
+        df_facturas = (
+            df_facturas[~df_facturas['Total'].isin([0, '', ' '])]
+            .dropna(subset=['Total'])
+            .reset_index(drop=True)
+        )
+
+
 
         return df_entregas_o_altas, df_facturas
 
@@ -155,6 +176,6 @@ if __name__ == "__main__":
     dic_columnas = {'IMSS_2023': ['Folio', 'Referencia', 'Alta', 'Total', 'UUID'], 'IMSS_2024': ['Folio', 'Referencia', 'Alta', 'Total', 'UUID'], 'IMSS_2025': ['Folio', 'Referencia', 'Alta', 'Total', 'UUID']} 
     paq_folder = r"C:\Users\arman\Dropbox\3. Armando Cuaxospa\Adjudicaciones\Licitaciones 2025\E115 360\Implementación\Facturas\IMSS"
     altas_path = r"C:\Users\arman\Dropbox\3. Armando Cuaxospa\Adjudicaciones\Licitaciones 2025\E115 360\Implementación\SAI\Ordenes_altas.xlsx"
-
     info_types = 'IMSS'
-    validacion_de_paqs(dict_path_sheet, dic_columnas, paq_folder, altas_path, info_types)
+    altas_sheet = 'df_altas'
+    validacion_de_paqs(dict_path_sheet, dic_columnas, paq_folder, altas_path, altas_sheet, info_types)
