@@ -6,7 +6,7 @@ import numpy as np
 from openpyxl import load_workbook
 
 
-def validacion_de_paqs(dict_path_sheet, dic_columnas, paq_folder, altas_path, altas_sheet, info_types):
+def validacion_de_paqs(dict_path_sheet, dic_columnas, paq_folder, altas_path, altas_sheet, info_types,xlsx_database ):
     # (I) Carga
     df_entregas_o_altas = pd.read_excel(altas_path, sheet_name=altas_sheet)
     columnas_objetivo = ["Folio", "Referencia", "Alta", "Total", "UUID"]
@@ -66,9 +66,47 @@ def validacion_de_paqs(dict_path_sheet, dic_columnas, paq_folder, altas_path, al
         default_value='alta no localizada'
     )
     
-    print(df_entregas_o_altas.sample(20))
 
     df_facturas.to_excel(excel_facturas, index=False)
+
+    #IV Sobreescribir UUID y totales 
+    print("Vamos a poblar el UUID de la base de facturación con info extraída de los XML's")
+    if os.path.exists(xlsx_database):
+        columna_UUID ='UUID'
+        df_database = pd.read_excel(xlsx_database)
+        df_database = (
+            df_database
+            .drop_duplicates(subset='UUID', keep='first')
+            .reset_index(drop=True)
+        )
+        df_UUIDS = {'Folio': 'Folio'}
+        df_facturas['UUID'] = multi_column_lookup(
+            df_to_fill=df_facturas,
+            df_to_consult=df_database,
+            match_columns=df_UUIDS,
+            return_column=columna_UUID,
+            default_value=f'{columna_UUID} no localizado'
+        )
+    
+    if os.path.exists(xlsx_database):
+        columna_retorno ='Importe'
+        columna_poblar = 'Total'
+        print(f"Vamos a poblar l columna {columna_poblar} con de la columna {columna_retorno} base de facturación con info extraída de los XML's")
+        df_database = pd.read_excel(xlsx_database)
+        df_database = (
+            df_database
+            .drop_duplicates(subset='UUID', keep='first')
+            .reset_index(drop=True)
+        )
+        columns_totales_match = {'Folio': 'Folio'}
+        df_facturas[columna_poblar] = multi_column_lookup(
+            df_to_fill=df_facturas,
+            df_to_consult=df_database,
+            match_columns=columns_totales_match,
+            return_column=columna_retorno,
+            default_value=f'{columna_UUID} no localizado'
+        )
+        
     # Cargar el archivo conservando las hojas
     with pd.ExcelWriter(altas_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
         df_entregas_o_altas.to_excel(writer, sheet_name=altas_sheet, index=False)
@@ -172,10 +210,13 @@ def correccion_types(df_entregas_o_altas, df_facturas, info_types):
 if __name__ == "__main__":
     # Esto solo se ejecuta cuando corres el script, no cuando lo importas desde otro módulo.
     #Test variables: 
+    folder_root = r"C:\Users\arman\Dropbox\3. Armando Cuaxospa\Adjudicaciones\Licitaciones 2025\E115 360"
     dict_path_sheet = {'C:\\Users\\arman\\Dropbox\\FACT 2023\\Generacion facturas IMSS VFinal.xlsx': 'Reporte Paq', 'C:\\Users\\arman\\Dropbox\\FACT 2024\\Generacion facturas IMSS 2024.xlsx': 'Reporte Paq', 'C:\\Users\\arman\\Dropbox\\FACT 2025\\Copy of Generacion facturas IMSS 2024.xlsx': 'Reporte Paq'} 
     dic_columnas = {'IMSS_2023': ['Folio', 'Referencia', 'Alta', 'Total', 'UUID'], 'IMSS_2024': ['Folio', 'Referencia', 'Alta', 'Total', 'UUID'], 'IMSS_2025': ['Folio', 'Referencia', 'Alta', 'Total', 'UUID']} 
     paq_folder = r"C:\Users\arman\Dropbox\3. Armando Cuaxospa\Adjudicaciones\Licitaciones 2025\E115 360\Implementación\Facturas\IMSS"
     altas_path = r"C:\Users\arman\Dropbox\3. Armando Cuaxospa\Adjudicaciones\Licitaciones 2025\E115 360\Implementación\SAI\Ordenes_altas.xlsx"
     info_types = 'IMSS'
     altas_sheet = 'df_altas'
-    validacion_de_paqs(dict_path_sheet, dic_columnas, paq_folder, altas_path, altas_sheet, info_types)
+    xlsx_database = os.path.join(folder_root, "Implementación", "Facturas", 'xmls_extraidos.xlsx')
+
+    validacion_de_paqs(dict_path_sheet, dic_columnas, paq_folder, altas_path, altas_sheet, info_types, xlsx_database)
