@@ -4,9 +4,10 @@ import pandas as pd
 
 def integracion_IMSS(IMSS_PREI, IMSS_altas, IMSS_Facturas, xlsx_database, multi_column_lookup):
     # Carga de archivos Excel
-    df_PREI = pd.read_excel(IMSS_PREI)
-    df_IMSS_altas = pd.read_excel(IMSS_altas, sheet_name='df_altas')
+    altas_sheet = 'df_altas'
     df_IMSS_facturas = pd.read_excel(IMSS_Facturas)
+    df_PREI = pd.read_excel(IMSS_PREI)
+    df_IMSS_altas = pd.read_excel(IMSS_altas, sheet_name=altas_sheet)
     df_XMLS = pd.read_excel(xlsx_database)
     df_XMLS = (df_XMLS.drop_duplicates(subset='UUID', keep='first').reset_index(drop=True))
 
@@ -16,7 +17,7 @@ def integracion_IMSS(IMSS_PREI, IMSS_altas, IMSS_Facturas, xlsx_database, multi_
     columna_poblar = 'Factura'
     columns_to_match = {'Folio Fiscal': 'UUID'}
 
-    print(f"Vamos a generar y poblar la fuente {columna_poblar} con la columna {columna_retorno} de consulta filtrando para {columns_to_match}")
+    print(f"Vamos a generar y poblar el df_PREI columna {columna_poblar} con el df_XMLS la columna {columna_retorno} de consulta filtrando para {columns_to_match}")
 
     df_PREI[columna_poblar] = multi_column_lookup(
         df_to_fill=df_PREI,
@@ -26,10 +27,24 @@ def integracion_IMSS(IMSS_PREI, IMSS_altas, IMSS_Facturas, xlsx_database, multi_
         default_value=f'{columna_retorno} no localizado'
     )
     df_PREI.to_excel(IMSS_PREI, index=False)
+    # Altas con Estatus PREI 
+    print("Poblando PREI con el Folio-Serie")
+    columna_retorno ='Estado C.R.'
+    columna_poblar = 'Estado C.R.'
+    columns_to_match = {'Factura': 'Factura'}
 
+    print(f"Vamos a generar y poblar el df_altas columna {columna_poblar} con el df_PREI la columna {columna_retorno} de consulta filtrando para {columns_to_match}")
+
+    df_IMSS_altas[columna_poblar] = multi_column_lookup(
+        df_to_fill=df_IMSS_altas,
+        df_to_consult=df_PREI,
+        match_columns=columns_to_match,
+        return_column=columna_retorno,
+        default_value=f'{columna_retorno} no localizado'
+    )
+    with pd.ExcelWriter(IMSS_altas, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+        df_IMSS_altas.to_excel(writer, sheet_name=altas_sheet, index=False)
     
-
-
 if __name__ == "__main__":
     folder_root = r"C:\Users\arman\Dropbox\3. Armando Cuaxospa\Adjudicaciones\Licitaciones 2025\E115 360"
     IMSS_PREI    = os.path.join(folder_root, "Implementación", "PREI",'PREI.xlsx')
