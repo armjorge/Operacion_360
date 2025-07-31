@@ -5,8 +5,11 @@ import pandas as pd
 from openpyxl import load_workbook
 import warnings
 warnings.filterwarnings("ignore", message="Workbook contains no default style, apply openpyxl's default")
+import yaml
 """def merge_dataframes(dataframes):"""
 from datetime import datetime
+from collections import defaultdict
+import re
 
 def xlsx_loading(download_directory, headers, output_name):
     """
@@ -102,20 +105,91 @@ def merge_dataframes(dataframes, duplicates_column, date_column):
     return merged_df
 
 def CAMUNDA_merging(download_directory, headers, columna_duplicados, output_name):
+    print(message_print('Iniciando la fusión de xlsx para la versión 2021-2024 de CAMUNDA'))
     print("Loading Camunda Merging: merge all xlsx file while keeping recent row")
     #print(download_directory)
     #print(headers)
+    download_directory = os.path.join(download_directory, "2023-2024")
     dataframe, date_column  = xlsx_loading(download_directory, headers, output_name)
     #print(date_column, "\n", dataframe.head() )
+    print(message_print("A partir de la fecha de los archivos, conservaremos la columna más reciente sin duplicar los renglones"))
     final_dataframe = merge_dataframes(dataframe, columna_duplicados, date_column)
     #print(final_dataframe.head())
     # Save final_dataframe to the file in the download_directory.
+    download_directory = os.path.join(download_directory, "..")
     final_path = os.path.join(download_directory, output_name)
     final_dataframe.to_excel(final_path, index=False)
     print(f"**********\nArchivo final guardado en {os.path.basename(download_directory)} / {output_name}\n *************")
 
+def message_print(message): 
+    message_highlights= '*' * len(message)
+    message = f'\n{message_highlights}\n{message}\n{message_highlights}\n'
+    return message
 
-def merging_and_updating_camunda2025(download_directory):
+def csv_renaming(download_directory):
+    # 1. Gather all .csv files
+    pattern_csv = os.path.join(download_directory, '*.csv')
+    all_csvs = glob.glob(pattern_csv)
+
+    # 2. Exclude files starting with YYYY MM DD  
+    date_prefix = re.compile(r'^\d{4}\s\d{2}\s\d{2}')
+    filtered = [
+        f for f in all_csvs
+        if not date_prefix.match(os.path.basename(f))
+    ]
+
+    # 3. Map each file to its modification datetime
+    file_dates = {
+        f: datetime.fromtimestamp(os.path.getmtime(f))
+        for f in filtered
+    }
+
+    # Sort filtered list by date for consistent grouping
+    filtered.sort(key=lambda f: file_dates[f])
+
+    # 4. Group by (year, month)
+    groups = defaultdict(list)
+    for f in filtered:
+        dt = file_dates[f]
+        groups[(dt.year, dt.month, dt.day)].append(f)
+
+    # 5. Process each year-month group
+    for (year, month, day), files in groups.items():
+        # load into DataFrames, keeping track of filenames
+        dfs = {f: pd.read_csv(f) for f in files}
+
+        # detect duplicates: keep first, mark the rest for removal
+        to_remove = set()
+        file_list = list(dfs.keys())
+        for i, f1 in enumerate(file_list):
+            if f1 in to_remove:
+                continue
+            for f2 in file_list[i+1:]:
+                if f2 in to_remove:
+                    continue
+                if dfs[f1].equals(dfs[f2]):
+                    to_remove.add(f2)
+
+        # remove duplicate files from disk
+        for dup in to_remove:
+            os.remove(dup)
+            print(f"Removed duplicate: {os.path.basename(dup)}")
+
+        # rename remaining files with suffixes if more than one
+        remaining = [f for f in files if f not in to_remove]
+        if len(remaining) > 1:
+            for idx, f in enumerate(remaining, start=1):
+                year, month, day = file_dates[f].year, file_dates[f].month, file_dates[f].day
+                new_name = f"{year:04d} {month:02d} {day:02d}_{idx}.csv"
+                new_path = os.path.join(download_directory, new_name)
+                os.rename(f, new_path)
+                print(f"Renamed {os.path.basename(f)} → {os.path.basename(new_name)}")
+
+def merging_and_updating_camunda2025(implementacion):
+    print(message_print('Iniciando la fusión de CSV para la versión 2025 de CAMUNDA'))
+    download_directory = os.path.join(implementacion, "CAMUNDA", "Descargas", "2025")
+    print(message_print('Renombrando archivos CSV'))
+    csv_renaming(download_directory)
     # Step 1: Load all CSV files with a date extracted from filename or filesystem metadata
     all_files = [
         os.path.join(download_directory, f)
@@ -141,7 +215,7 @@ def merging_and_updating_camunda2025(download_directory):
     latest_rows = combined_df.drop_duplicates(subset='numero_orden_suministro', keep='first')
 
     # Step 5: Load historical merged file if it exists
-    merged_file_path = os.path.join(download_directory, '..', 'Camunda v2025.xlsx')
+    merged_file_path = os.path.join(implementacion,"CAMUNDA", 'Camunda.xlsx')
     if os.path.exists(merged_file_path):
         df_merged_updated = pd.read_excel(merged_file_path)
     else:
@@ -170,5 +244,15 @@ def merging_and_updating_camunda2025(download_directory):
 
 if __name__ == "__main__":
     # Esto solo se ejecuta cuando corres el script, no cuando lo importas desde otro módulo.
-    download_directory = r"C:\Users\arman\Dropbox\3. Armando Cuaxospa\Adjudicaciones\Licitaciones 2025\E115 360\Implementación\CAMUNDA\Descargas"
-    merging_and_updating_camunda2025(download_directory)
+    implementacion =os.path.join( os.getcwd(), "Implementación")
+    download_directory = os.path.join(implementacion, "CAMUNDA", "Descargas")
+    
+    print(download_directory)
+    yaml_file = os.path.join(implementacion, "df_headers.yaml")
+    with open(yaml_file, "r", encoding="utf-8") as file:
+        data = yaml.load(file, Loader=yaml.FullLoader)
+    INSABI_headers = data.get("columns_INSABI")
+    duplicados = "NÚMERO DE ORDEN DE SUMINISTRO"
+    archivo_final = "Camunda 2023-2025.xlsx"
+    merging_and_updating_camunda2025(implementacion)
+    CAMUNDA_merging(download_directory, INSABI_headers, duplicados, archivo_final)

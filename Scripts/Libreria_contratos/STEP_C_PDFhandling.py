@@ -66,9 +66,9 @@ def STEP_C_PDF_HANDLING(valid_dict, carpeta_contratos):
     #print(f"🐞 Archivo PDF procesado: {pdf_path}")
     #print(f"🐞 Tipo de pdf_path: {type(pdf_path)}")
     #pdf_path = [pdf_path]
-    STEP_C_write_label_to_PDF(pdf_path, carpeta_contratos, valid_dict)
+    STEP_C_write_label_to_PDF(pdf_path, carpeta_contratos, valid_dict, just_read=False)
 
-def STEP_C_write_label_to_PDF(pdf_path, carpeta_contratos, valid_dict):
+def STEP_C_write_label_to_PDF(pdf_path, carpeta_contratos, valid_dict, just_read=False):
     """
     Reads labeled PDF files, validates the presence of the copied dictionary inside the document,
     and ensures the label has been correctly added.
@@ -102,6 +102,8 @@ def STEP_C_write_label_to_PDF(pdf_path, carpeta_contratos, valid_dict):
 
         if extracted_text:
             # Compare normalized texts without changing capitalization
+            if just_read is True:
+                return extracted_text            
             if dict_text in normalized_extracted_text:
                 print("✅ **Etiqueta detectada en el archivo PDF.**")
                 print("📦 Moviendo archivo a la biblioteca de contratos...")
